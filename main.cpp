@@ -4,10 +4,10 @@
 #include <vector>
 
 constexpr int NUMBER_DECKS = 6;
-constexpr int NUMBER_HANDS = 10000;
+constexpr int NUMBER_HANDS = 1000000;
 constexpr int RESHUFFLE_CARD = 260;
 constexpr bool DEALER_HIT_ON_SOFT_17 = false;
-constexpr int PLAYER_STARTING_BANK = 10000;
+constexpr int PLAYER_STARTING_BANK = 100000;
 int COUNT = 0;
 
 constexpr int BET_SIZE = 10;
@@ -22,6 +22,8 @@ struct stats {
     uint32_t cardsDealt = 0;
     uint32_t bank = PLAYER_STARTING_BANK;
     uint32_t hands = 0;
+    uint32_t splits = 0;
+    uint32_t doubles = 0;
 };
 
 stats stats;
@@ -146,42 +148,6 @@ void turnDealer(std::vector<int>& deck, std::vector<int>& hand) {
     }
 }
 
-void turnPlayer(std::vector<int>& deck, std::vector<int>& handPlayer, const std::vector<int>& handDealer) {
-    while (true) {
-        const int value = calculateHandValue(handPlayer);
-
-        if (isSoftHand(handPlayer)) {
-            if (value < 18) {
-                drawCard(deck, handPlayer);
-                continue;
-            }
-
-            if (value == 18 && handDealer[0] > 8) {
-                drawCard(deck, handPlayer);
-                continue;
-            }
-
-            break;
-        }
-
-        if (value < 12) {
-            drawCard(deck, handPlayer);
-            continue;
-        }
-
-        if (value > 16) {
-            break;
-        }
-
-        if (handDealer[0] > 6) {
-            drawCard(deck, handPlayer);
-            continue;
-        }
-
-        break;
-    }
-}
-
 void checkWinner(const std::vector<int>& handPlayer, const std::vector<int>& handDealer) {
     const int valuePlayer = calculateHandValue(handPlayer);
     const int valueDealer = calculateHandValue(handDealer);
@@ -202,6 +168,63 @@ void checkWinner(const std::vector<int>& handPlayer, const std::vector<int>& han
         stats.bank = stats.bank - 10;
     } else {
         throw std::invalid_argument("something wrong");
+    }
+}
+
+void turnPlayer(std::vector<int>& deck, std::vector<int>& handPlayer, const std::vector<int>& handDealer) {
+    while (true) {
+        const int value = calculateHandValue(handPlayer);
+
+        if (isSoftHand(handPlayer)) {
+            if (value == 12 && handPlayer[0] == 11 && handPlayer[1] == 11) { // split aces
+                std::vector<int> handSplit = initHand();
+                const int card = handPlayer.back();
+                handPlayer.pop_back();
+                handSplit.push_back(card);
+                turnPlayer(deck, handSplit, handDealer);
+                checkWinner(handSplit, handDealer);
+                stats.splits++;
+            }
+            if (value <= 17) {
+                drawCard(deck, handPlayer);
+                continue;
+            }
+            if (value == 18 && handDealer[0] > 8) {
+                drawCard(deck, handPlayer);
+                continue;
+            }
+            break;
+        }
+
+
+        if (value == 11 && handPlayer.size() == 2) {
+            drawCard(deck, handPlayer);
+            checkWinner(handPlayer, handDealer); //double by checking winner twice
+            stats.doubles++;
+            break;
+        }
+        if (value <= 11) {
+            drawCard(deck, handPlayer);
+            continue;
+        }
+        if (handPlayer[0] == 8 && handPlayer[1] == 8) { // split 8s
+            std::vector<int> handSplit = initHand();
+            const int card = handPlayer.back();
+            handPlayer.pop_back();
+            handSplit.push_back(card);
+            turnPlayer(deck, handSplit, handDealer);
+            checkWinner(handSplit, handDealer);
+            stats.splits++;
+            continue;
+        }
+        if (value > 16) {
+            break;
+        }
+        if (handDealer[0] > 6) {
+            drawCard(deck, handPlayer);
+            continue;
+        }
+        break;
     }
 }
 
@@ -238,6 +261,9 @@ void printStats() {
 
     std::cout << stats.shuffles << " Shuffles" << std::endl;
     std::cout << stats.cardsDealt << " Cards dealt" << std::endl;
+
+    std::cout << stats.splits << " Splits" << std::endl;
+    std::cout << stats.doubles << " Doubles" << std::endl;
 
     const float winPercent = (static_cast<float>(stats.playerWins) / (static_cast<float>(stats.playerWins) + static_cast<float>(stats.dealerWins)));
     std::cout << "player win percentage excl draws: " << winPercent * 100 << "%" << std::endl;
