@@ -4,9 +4,7 @@
 #include <vector>
 
 constexpr int NUMBER_DECKS = 6;
-constexpr int NUMBER_HANDS = 100000;
-constexpr int MIN_BET = 10;
-constexpr int MAX_BET = 1000;
+constexpr int NUMBER_HANDS = 10000000;
 constexpr int RESHUFFLE_CARD = 260;
 constexpr bool DEALER_HIT_ON_SOFT_17 = false;
 int COUNT = 0;
@@ -26,9 +24,7 @@ stats stats;
 void printGlobalVars() {
     std::cout << "Number of decks: " << NUMBER_DECKS << "\n";
     std::cout << "Number of hands being played: " << NUMBER_HANDS << "\n";
-    std::cout << "Min bet: " << MIN_BET << "\n";
-    std::cout << "Max bet: " << MAX_BET << "\n";
-    std::cout << "Reshuffle at card " << RESHUFFLE_CARD << "\n";
+    std::cout << "Reshuffle at card " << RESHUFFLE_CARD << " or when under 20 cards remaining in deck\n";
     if constexpr (DEALER_HIT_ON_SOFT_17) {
         std::cout << "Dealer hits on soft 17\n";
     } else {
@@ -93,18 +89,6 @@ bool isBlackjack(const std::vector<int>& hand) {
     return hand.size() == 2 && calculateHandValue(hand) == 21;
 }
 
-void printCards(const std::vector<int>& cards, const std::string& message) {
-    std::cout << message << ": ";
-    for (const int i : cards) {
-        std::cout << i << " ";
-    }
-    std::cout << "\n";
-}
-
-void printHandValue(const std::vector<int>& hand) {
-    std::cout << "value: " << calculateHandValue(hand) << "\n";
-}
-
 void shuffleDeck(std::vector<int>& deck, std::mt19937& rng) {
     initDeck(deck);
     std::ranges::shuffle(deck, rng);
@@ -120,9 +104,17 @@ void drawCard(std::vector<int>& deck, std::vector<int>& hand) {
     stats.cardsDealt++;
 }
 
-void dealInitialCards(std::vector<int>& deck, std::vector<int>& handPlayer, std::vector<int>& handDealer) {
+void dealInitialCards(std::vector<int>& deck, std::vector<int>& handPlayer, std::vector<int>& handDealer, std::mt19937& rng) {
     handPlayer.clear();
     handDealer.clear();
+
+    if (COUNT > (NUMBER_DECKS * 52) - 20) {
+        shuffleDeck(deck, rng);
+    }
+
+    if (COUNT > RESHUFFLE_CARD) {
+        shuffleDeck(deck, rng);
+    }
 
     drawCard(deck, handDealer);
     drawCard(deck, handPlayer);
@@ -203,12 +195,11 @@ void checkWinner(const std::vector<int>& handPlayer, const std::vector<int>& han
     }
 }
 
-void turnFull(std::vector<int>& deck, std::vector<int>& handPlayer, std::vector<int>& handDealer) {
-    dealInitialCards(deck, handPlayer, handDealer);
+void turnFull(std::vector<int>& deck, std::vector<int>& handPlayer, std::vector<int>& handDealer, std::mt19937& rng) {
+    dealInitialCards(deck, handPlayer, handDealer, rng);
     if (isBlackjack(handDealer) && isBlackjack(handPlayer)) {
         stats.draw++;
-    }
-    if (isBlackjack(handDealer)) {
+    } else if (isBlackjack(handDealer)) {
         stats.dealerWins++;
         stats.dealerBlackjacks++;
     } else if (isBlackjack(handPlayer)) {
@@ -232,34 +223,29 @@ void printStats() {
 
     std::cout << stats.shuffles << " Shuffles" << std::endl;
     std::cout << stats.cardsDealt << " Cards dealt" << std::endl;
+
+    const float winPercent = (static_cast<float>(stats.playerWins) / (static_cast<float>(stats.playerWins) + static_cast<float>(stats.dealerWins)));
+    std::cout << "player win percentage excl draws: " << winPercent * 100 << "%" << std::endl;
 }
 
 int main() {
-    std::random_device rd;
-    std::mt19937 rng(rd());
-
     printGlobalVars();
 
     std::vector<int> deck;
     deck.reserve(52 * NUMBER_DECKS);
 
-    std::vector<int> handPlayer = initHand();
-    std::vector<int> handDealer = initHand();
+    std::random_device rd;
+    std::mt19937 rng(rd());
 
     shuffleDeck(deck, rng);
 
+    std::vector<int> handPlayer = initHand();
+    std::vector<int> handDealer = initHand();
+
     for (int i = 0; i < NUMBER_HANDS; i++) {
-        turnFull(deck, handPlayer, handDealer);
-        if (COUNT > RESHUFFLE_CARD) {
-            shuffleDeck(deck, rng);
-        }
+        turnFull(deck, handPlayer, handDealer, rng);
     }
 
     printStats();
-
-    const float winPercent = (static_cast<float>(stats.playerWins) / (static_cast<float>(stats.playerWins) + static_cast<float>(stats.dealerWins)));
-
-    std::cout << "player win percentage excl draws: " << winPercent * 100 << "%" << std::endl;
-
     return 0;
 }
