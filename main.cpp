@@ -4,19 +4,24 @@
 #include <vector>
 
 constexpr int NUMBER_DECKS = 6;
-constexpr int NUMBER_HANDS = 10000000;
+constexpr int NUMBER_HANDS = 10000;
 constexpr int RESHUFFLE_CARD = 260;
 constexpr bool DEALER_HIT_ON_SOFT_17 = false;
+constexpr int PLAYER_STARTING_BANK = 10000;
 int COUNT = 0;
 
+constexpr int BET_SIZE = 10;
+
 struct stats {
-    int playerWins = 0;
-    int dealerWins = 0;
-    int draw = 0;
-    int playerBlackjacks = 0;
-    int dealerBlackjacks = 0;
-    int shuffles = 0;
-    int cardsDealt = 0;
+    uint32_t playerWins = 0;
+    uint32_t dealerWins = 0;
+    uint32_t draw = 0;
+    uint32_t playerBlackjacks = 0;
+    uint32_t dealerBlackjacks = 0;
+    uint32_t shuffles = 0;
+    uint32_t cardsDealt = 0;
+    uint32_t bank = PLAYER_STARTING_BANK;
+    uint32_t hands = 0;
 };
 
 stats stats;
@@ -24,7 +29,8 @@ stats stats;
 void printGlobalVars() {
     std::cout << "Number of decks: " << NUMBER_DECKS << "\n";
     std::cout << "Number of hands being played: " << NUMBER_HANDS << "\n";
-    std::cout << "Reshuffle at card " << RESHUFFLE_CARD << " or when under 20 cards remaining in deck\n";
+    std::cout << "Reshuffle at card " << RESHUFFLE_CARD << "\n";
+    std::cout << "Player starting bank: " << PLAYER_STARTING_BANK << "\n";
     if constexpr (DEALER_HIT_ON_SOFT_17) {
         std::cout << "Dealer hits on soft 17\n";
     } else {
@@ -167,7 +173,7 @@ void turnPlayer(std::vector<int>& deck, std::vector<int>& handPlayer, const std:
             break;
         }
 
-        if (handDealer[0] > 7) {
+        if (handDealer[0] > 6) {
             drawCard(deck, handPlayer);
             continue;
         }
@@ -182,14 +188,18 @@ void checkWinner(const std::vector<int>& handPlayer, const std::vector<int>& han
 
     if (valuePlayer > 21) {
         stats.dealerWins++;
+        stats.bank = stats.bank - 10;
     } else if (valueDealer > 21) {
         stats.playerWins++;
+        stats.bank = stats.bank + 10;
     } else if (valuePlayer == valueDealer) {
         stats.draw++;
     } else if (valuePlayer > valueDealer) {
         stats.playerWins++;
+        stats.bank = stats.bank + 10;
     } else if (valuePlayer < valueDealer) {
         stats.dealerWins++;
+        stats.bank = stats.bank - 10;
     } else {
         throw std::invalid_argument("something wrong");
     }
@@ -202,17 +212,22 @@ void turnFull(std::vector<int>& deck, std::vector<int>& handPlayer, std::vector<
     } else if (isBlackjack(handDealer)) {
         stats.dealerWins++;
         stats.dealerBlackjacks++;
+        stats.bank = stats.bank - 10;
     } else if (isBlackjack(handPlayer)) {
         stats.playerWins++;
         stats.playerBlackjacks++;
+        stats.bank = stats.bank + 15;
     } else {
         turnPlayer(deck, handPlayer, handDealer);
         turnDealer(deck, handDealer);
         checkWinner(handPlayer, handDealer);
     }
+    stats.hands++;
 }
 
 void printStats() {
+    std::cout << stats.hands << " Hands played" << std::endl;
+
     std::cout << stats.dealerWins << " Dealer Wins" << std::endl;
     std::cout << stats.dealerBlackjacks << " Dealer Blackjacks" << std::endl;
 
@@ -226,6 +241,8 @@ void printStats() {
 
     const float winPercent = (static_cast<float>(stats.playerWins) / (static_cast<float>(stats.playerWins) + static_cast<float>(stats.dealerWins)));
     std::cout << "player win percentage excl draws: " << winPercent * 100 << "%" << std::endl;
+
+    std::cout << "player bank: " << stats.bank << std::endl;
 }
 
 int main() {
@@ -244,6 +261,10 @@ int main() {
 
     for (int i = 0; i < NUMBER_HANDS; i++) {
         turnFull(deck, handPlayer, handDealer, rng);
+        if (stats.bank < BET_SIZE) {
+            printStats();
+            return 0;
+        }
     }
 
     printStats();
