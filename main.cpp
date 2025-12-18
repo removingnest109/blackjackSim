@@ -3,30 +3,30 @@
 #include <random>
 #include <vector>
 
-constexpr int NUMBER_DECKS = 6;
 constexpr int NUMBER_HANDS = 10000000;
-constexpr int RESHUFFLE_CARD = 260;
-constexpr bool DEALER_HIT_ON_SOFT_17 = false;
+constexpr int NUMBER_DECKS = 6;
+constexpr int CUT_CARD = 260;
 constexpr float PLAYER_STARTING_BANK = 1000000;
-constexpr bool CARD_COUNTING = true;
 constexpr float DEFAULT_BET = 100.0;
+constexpr bool DEALER_HIT_ON_SOFT_17 = false;
 constexpr bool INTERACTIVE = false;
+constexpr bool CARD_COUNTING = true;
 
 struct stats {
-    uint32_t playerWins = 0;
-    uint32_t dealerWins = 0;
-    uint32_t draw = 0;
-    uint32_t playerBlackjacks = 0;
-    uint32_t dealerBlackjacks = 0;
-    uint32_t shuffles = 0;
-    uint32_t cardsDealt = 0;
-    float bank = PLAYER_STARTING_BANK;
-    uint32_t hands = 0;
-    uint32_t splits = 0;
-    uint32_t doubles = 0;
-    uint32_t cardsSinceShuffle = 0;
+    int hands = 0;
+    int playerWins = 0;
+    int dealerWins = 0;
+    int playerBlackjacks = 0;
+    int dealerBlackjacks = 0;
+    int draw = 0;
+    int shuffles = 0;
+    int cardsDealt = 0;
+    int splits = 0;
+    int doubles = 0;
+    int cardsSinceShuffle = 0;
     int runningCount = 0;
     int trueCount = 0;
+    float bank = PLAYER_STARTING_BANK;
     float totalBet = 0;
 };
 
@@ -44,7 +44,7 @@ stats stats;
 void printGlobalVars() {
     std::cout << "Number of decks: " << NUMBER_DECKS << std::endl;
     std::cout << "Number of hands being played: " << NUMBER_HANDS << std::endl;
-    std::cout << "Reshuffle at card " << RESHUFFLE_CARD << std::endl;
+    std::cout << "Reshuffle at card " << CUT_CARD << std::endl;
     std::cout << "Player starting bank: " << static_cast<int>(PLAYER_STARTING_BANK) << std::endl;
     if constexpr (DEALER_HIT_ON_SOFT_17) {
         std::cout << "Dealer hits on soft 17\n";
@@ -76,7 +76,7 @@ void printStats() {
     std::cout << "player bank: " << static_cast<int>(stats.bank) << std::endl;
 
     const float profit = stats.bank - PLAYER_STARTING_BANK;
-    const float evPerHand = profit / stats.hands;
+    const float evPerHand = profit / static_cast<float>(stats.hands);
     const float evPercent = profit / stats.totalBet;
 
     std::cout << "EV per hand: " << evPerHand << " $" << std::endl;
@@ -146,7 +146,7 @@ void dealInitialCards(std::vector<int>& deck, Hand& handPlayer, std::vector<int>
         shuffleDeck(deck, rng);
     }
 
-    if (stats.cardsSinceShuffle > RESHUFFLE_CARD) {
+    if (stats.cardsSinceShuffle > CUT_CARD) {
         shuffleDeck(deck, rng);
     }
 
