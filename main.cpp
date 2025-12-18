@@ -2,37 +2,54 @@
 #include <iostream>
 #include <random>
 #include <vector>
+#include <thread>
 
-constexpr int NUMBER_HANDS = 100000000;
+constexpr int NUMBER_HANDS = 1000000;
 constexpr int NUMBER_DECKS = 6;
-constexpr float PENETRATION = 0.75;
-constexpr float PLAYER_STARTING_BANK = 1000000;
-constexpr float DEFAULT_BET = 100.0;
+constexpr int PLAYER_STARTING_BANK = 100000;
+constexpr int DEFAULT_BET = 100;
+constexpr double PENETRATION = 0.75;
 constexpr bool DEALER_HIT_ON_SOFT_17 = false;
 constexpr bool INTERACTIVE = false;
 constexpr bool CARD_COUNTING = true;
 
 struct stats {
-    int hands = 0;
-    int playerWins = 0;
-    int dealerWins = 0;
-    int playerBlackjacks = 0;
-    int dealerBlackjacks = 0;
-    int draw = 0;
-    int shuffles = 0;
-    int cardsDealt = 0;
-    int splits = 0;
-    int doubles = 0;
-    int cardsSinceShuffle = 0;
-    int runningCount = 0;
-    int trueCount = 0;
-    float bank = PLAYER_STARTING_BANK;
-    float totalBet = 0;
+    int64_t hands = 0;
+    int64_t playerWins = 0;
+    int64_t dealerWins = 0;
+    int64_t playerBlackjacks = 0;
+    int64_t dealerBlackjacks = 0;
+    int64_t draw = 0;
+    int64_t shuffles = 0;
+    int64_t cardsDealt = 0;
+    int64_t splits = 0;
+    int64_t doubles = 0;
+    int64_t cardsSinceShuffle = 0;
+    int64_t runningCount = 0;
+    int64_t trueCount = 0;
+    int64_t bank = PLAYER_STARTING_BANK;
+    int64_t totalBet = 0;
+
+    stats& operator+=(const stats& o) {
+        hands += o.hands;
+        playerWins += o.playerWins;
+        dealerWins += o.dealerWins;
+        playerBlackjacks += o.playerBlackjacks;
+        dealerBlackjacks += o.dealerBlackjacks;
+        draw += o.draw;
+        shuffles += o.shuffles;
+        cardsDealt += o.cardsDealt;
+        splits += o.splits;
+        doubles += o.doubles;
+        totalBet += o.totalBet;
+        bank += (o.bank );
+        return *this;
+    }
 };
 
 struct Hand {
     std::vector<int> cards;
-    float bet;
+    int64_t bet;
     bool doubled = false;
     bool splitAces = false;
 };
@@ -44,15 +61,14 @@ enum class Action {
     Stand
 };
 
-stats stats;
-
 // PRINT
-void printGlobalVars() {
+void printGlobalVars(const uint threads) {
+    std::cout << "Number of independent players simulated: " << threads << std::endl;
+    std::cout << "Number of hands per player: " << NUMBER_HANDS << std::endl;
+    std::cout << "Player starting bank: " << PLAYER_STARTING_BANK << std::endl;
     std::cout << "Number of decks: " << NUMBER_DECKS << std::endl;
-    std::cout << "Number of hands being played: " << NUMBER_HANDS << std::endl;
     std::cout << "Penetration before shuffle: " << PENETRATION * 100 << "%" << std::endl;
     std::cout << "Reshuffle at card " << static_cast<int>(PENETRATION * NUMBER_DECKS * 52) << std::endl;
-    std::cout << "Player starting bank: " << static_cast<int>(PLAYER_STARTING_BANK) << std::endl;
     if constexpr (DEALER_HIT_ON_SOFT_17) {
         std::cout << "Dealer hits on soft 17" << std::endl;
     } else {
@@ -60,11 +76,11 @@ void printGlobalVars() {
     }
 }
 
-void printStats() {
-    const float winPercent = (static_cast<float>(stats.playerWins) / (static_cast<float>(stats.playerWins) + static_cast<float>(stats.dealerWins)));
-    const float profit = stats.bank - PLAYER_STARTING_BANK;
-    const float evPerHand = profit / static_cast<float>(stats.hands);
-    const float evPercent = profit / stats.totalBet;
+void printStats(const stats& stats, const uint threads) {
+    const double winPercent = (static_cast<double>(stats.playerWins) / (static_cast<double>(stats.playerWins) + static_cast<double>(stats.dealerWins)));
+    const int64_t profit = stats.bank - (PLAYER_STARTING_BANK * threads);
+    const double evPerHand = static_cast<double>(profit) / static_cast<double>(stats.hands);
+    const auto evPercent = static_cast<double>(static_cast<double>(profit) / static_cast<double>(stats.totalBet));
     std::cout << stats.hands << " Hands played" << std::endl;
     std::cout << stats.dealerWins << " Dealer Wins" << std::endl;
     std::cout << stats.dealerBlackjacks << " Dealer Blackjacks" << std::endl;
@@ -75,11 +91,11 @@ void printStats() {
     std::cout << stats.cardsDealt << " Cards dealt" << std::endl;
     std::cout << stats.splits << " Splits" << std::endl;
     std::cout << stats.doubles << " Doubles" << std::endl;
-    std::cout << "player win percentage excl draws: " << winPercent * 100 << "%" << std::endl;
-    std::cout << "player bank: " << static_cast<int>(stats.bank) << std::endl;
-    std::cout << "profit: " << static_cast<int>(profit) << std::endl;
-    std::cout << "EV per hand: " << evPerHand << " $" << std::endl;
-    std::cout << "EV percentage: " << evPercent * 100 << "%" << std::endl;
+    std::cout << "Average player win percentage excl draws: " << winPercent * 100 << "%" << std::endl;
+    std::cout << "Average player bank: " << stats.bank / threads << std::endl;
+    std::cout << "Average profit: " << profit / threads << std::endl;
+    std::cout << "Average EV per hand: " << evPerHand << " $" << std::endl;
+    std::cout << "Average EV percentage: " << evPercent * 100 << "%" << std::endl;
 }
 
 void printIfInteractive(const std::string& msg) {
@@ -90,7 +106,7 @@ void printIfInteractive(const std::string& msg) {
 // END PRINT
 
 // CARD ACTIONS
-void drawCard(std::vector<int>& deck, std::vector<int>& cards, const bool visible) {
+void drawCard(std::vector<int>& deck, std::vector<int>& cards, const bool visible, stats& stats) {
     const int card = deck.back();
 
     stats.cardsSinceShuffle++;
@@ -100,7 +116,7 @@ void drawCard(std::vector<int>& deck, std::vector<int>& cards, const bool visibl
         if (card < 7) stats.runningCount++;
         if (card > 9) stats.runningCount--;
         const double decksRemaining = static_cast<double>(deck.size()) / 52.0;
-        const double trueCount = stats.runningCount / decksRemaining;
+        const double trueCount = static_cast<double>(stats.runningCount) / decksRemaining;
         stats.trueCount = static_cast<int>(std::floor(trueCount));
     }
 
@@ -126,7 +142,7 @@ void initDeck(std::vector<int>& deck) {
     }
 }
 
-void shuffleDeck(std::vector<int>& deck, std::mt19937& rng) {
+void shuffleDeck(std::vector<int>& deck, std::mt19937& rng, stats& stats) {
     initDeck(deck);
     std::ranges::shuffle(deck, rng);
     stats.shuffles++;
@@ -135,24 +151,24 @@ void shuffleDeck(std::vector<int>& deck, std::mt19937& rng) {
     stats.trueCount = 0;
 }
 
-void dealInitialCards(std::vector<int>& deck, Hand& handPlayer, std::vector<int>& handDealer, std::mt19937& rng, const float bet) {
+void dealInitialCards(std::vector<int>& deck, Hand& handPlayer, std::vector<int>& handDealer, std::mt19937& rng, const int64_t bet, stats& stats) {
     handPlayer.cards.clear();
     handPlayer.doubled = false;
     handPlayer.bet = bet;
     handDealer.clear();
 
     if (stats.cardsSinceShuffle > (NUMBER_DECKS * 52) - 20) {
-        shuffleDeck(deck, rng);
+        shuffleDeck(deck, rng, stats);
     }
 
     if (stats.cardsSinceShuffle > static_cast<int>(PENETRATION * NUMBER_DECKS * 52)) {
-        shuffleDeck(deck, rng);
+        shuffleDeck(deck, rng, stats);
     }
 
-    drawCard(deck, handDealer, true);
-    drawCard(deck, handPlayer.cards, true);
-    drawCard(deck, handDealer, false);
-    drawCard(deck, handPlayer.cards, true);
+    drawCard(deck, handDealer, true, stats);
+    drawCard(deck, handPlayer.cards, true, stats);
+    drawCard(deck, handDealer, false, stats);
+    drawCard(deck, handPlayer.cards, true, stats);
 }
 
 std::vector<int> initHand() {
@@ -161,11 +177,11 @@ std::vector<int> initHand() {
     return cards;
 }
 
-Hand makeHand(const float bet) {
+Hand makeHand(const int64_t bet) {
     return { initHand(), bet, false };
 }
 
-Hand split(std::vector<int>& deck, Hand& originalHand) {
+Hand split(std::vector<int>& deck, Hand& originalHand, stats& stats) {
     stats.bank -= originalHand.bet; // bet for newHand
     stats.totalBet += originalHand.bet;
     Hand newHand = makeHand(originalHand.bet);
@@ -180,31 +196,31 @@ Hand split(std::vector<int>& deck, Hand& originalHand) {
     originalHand.cards.pop_back();
     newHand.cards.push_back(card);
 
-    drawCard(deck, originalHand.cards, true);
-    drawCard(deck, newHand.cards, true);
+    drawCard(deck, originalHand.cards, true, stats);
+    drawCard(deck, newHand.cards, true, stats);
 
     stats.splits++;
     return newHand;
 }
 
-void doubleDown(std::vector<int>& deck, Hand& hand) {
+void doubleDown(std::vector<int>& deck, Hand& hand, stats& stats) {
     stats.bank -= hand.bet; // second bet for double down
     stats.totalBet += hand.bet;
     hand.bet *= 2;
     hand.doubled = true;
     stats.doubles++;
-    drawCard(deck, hand.cards, true);
+    drawCard(deck, hand.cards, true, stats);
 }
 // END CARD ACTIONS
 
 // HELPERS
-float betFromTrueCount() {
-    if (stats.trueCount <= 0) return 1.0f;
-    if (stats.trueCount == 1) return 3.0f;
-    if (stats.trueCount == 2) return 6.0f;
-    if (stats.trueCount == 3) return 10.0f;
-    if (stats.trueCount == 4) return 14.0f;
-    return 16.0f;
+int64_t betFromTrueCount(const stats& stats) {
+    if (stats.trueCount <= 0) return 1;
+    if (stats.trueCount == 1) return 3;
+    if (stats.trueCount == 2) return 6;
+    if (stats.trueCount == 3) return 10;
+    if (stats.trueCount == 4) return 14;
+    return 16;
 }
 
 int calculateHandValue(const std::vector<int>& cards) {
@@ -238,12 +254,12 @@ bool isBlackjack(const std::vector<int>& cards, const bool splitAces) {
     return !splitAces && cards.size() == 2 && calculateHandValue(cards) == 21;
 }
 
-bool detectBlackjacks(const std::vector<int>& deck, const Hand& handPlayer, const std::vector<int>& handDealer, const float bet) {
+bool detectBlackjacks(const std::vector<int>& deck, const Hand& handPlayer, const std::vector<int>& handDealer, const int64_t bet, stats& stats) {
     if (isBlackjack(handDealer, false) && isBlackjack(handPlayer.cards, handPlayer.splitAces)) {
         if (const int hole = handDealer[1]; hole < 7) stats.runningCount++;
         else if (hole > 9) stats.runningCount--;
         const double decksRemaining = static_cast<double>(deck.size()) / 52.0;
-        stats.trueCount = static_cast<int>(std::floor(stats.runningCount / decksRemaining));
+        stats.trueCount = static_cast<int>(std::floor(static_cast<long double>(stats.runningCount) / decksRemaining));
         stats.draw++;
         printIfInteractive("Push");
         stats.bank += bet; // return original bet
@@ -251,7 +267,7 @@ bool detectBlackjacks(const std::vector<int>& deck, const Hand& handPlayer, cons
         if (const int hole = handDealer[1]; hole < 7) stats.runningCount++;
         else if (hole > 9) stats.runningCount--;
         const double decksRemaining = static_cast<double>(deck.size()) / 52.0;
-        stats.trueCount = static_cast<int>(std::floor(stats.runningCount / decksRemaining));
+        stats.trueCount = static_cast<int>(std::floor(static_cast<long double>(stats.runningCount) / decksRemaining));
         stats.dealerWins++;
         stats.dealerBlackjacks++;
         printIfInteractive("Dealer Blackjack");
@@ -259,7 +275,7 @@ bool detectBlackjacks(const std::vector<int>& deck, const Hand& handPlayer, cons
         stats.playerWins++;
         stats.playerBlackjacks++;
         printIfInteractive("Player Blackjack");
-        stats.bank += bet * 2.5f; // original bet + 1.5x
+        stats.bank += static_cast<int64_t>(static_cast<double>(bet) * 2.5); // original bet + 1.5x
     }
     return (isBlackjack(handPlayer.cards, handPlayer.splitAces) || isBlackjack(handDealer, false));
 }
@@ -348,8 +364,7 @@ Action getAction(const int total, const int dealerUp, const bool isSoft, const b
 // END HAND LOOKUP TABLES
 
 // TURN ACTIONS
-void playPlayerHands(
-    std::vector<int>& deck, std::vector<Hand>& hands, const std::vector<int>& dealer) {
+void playPlayerHands(std::vector<int>& deck, std::vector<Hand>& hands, const std::vector<int>& dealer, stats& stats) {
     for (size_t i = 0; i < hands.size(); ++i) {
         bool done = false;
         while (!done) {
@@ -362,16 +377,16 @@ void playPlayerHands(
             }
 
             switch (getAction(value, dealerUp, isSoftHand(hand.cards), hand.cards.size() == 2 && hand.cards[0] == hand.cards[1] && hands.size() < 4, hand.cards[0])) {
-                case Action::Hit:    drawCard(deck, hand.cards, true); break;
-                case Action::Double: doubleDown(deck, hand); done = true; break;
-                case Action::Split:  hands.push_back(split(deck, hand)); break;
+                case Action::Hit:    drawCard(deck, hand.cards, true, stats); break;
+                case Action::Double: doubleDown(deck, hand, stats); done = true; break;
+                case Action::Split:  hands.push_back(split(deck, hand, stats)); break;
                 case Action::Stand:  default: done = true; break;
             }
         }
     }
 }
 
-void interactiveHand(std::vector<int>& deck, std::vector<Hand>& hands, const std::vector<int>& dealer) {
+void interactiveHand(std::vector<int>& deck, std::vector<Hand>& hands, const std::vector<int>& dealer, stats& stats) {
     for (size_t i = 0; i < hands.size(); ++i) {
         while (true) {
             Hand& hand = hands[i];
@@ -397,18 +412,18 @@ void interactiveHand(std::vector<int>& deck, std::vector<Hand>& hands, const std
             char choice;
             std::cin >> choice;
             if (choice == 'h') {
-                drawCard(deck, hand.cards, true);
+                drawCard(deck, hand.cards, true, stats);
                 continue;
             }
             if (choice == 's') {
                 break;
             }
             if (choice == 'd' && canDouble) {
-                doubleDown(deck, hand);
+                doubleDown(deck, hand, stats);
                 break;
             }
             if (choice == 'p' && canSplit) {
-                hands.push_back(split(deck, hand));
+                hands.push_back(split(deck, hand, stats));
                 continue;
             }
             std::cout << "Invalid choice.\n";
@@ -416,22 +431,22 @@ void interactiveHand(std::vector<int>& deck, std::vector<Hand>& hands, const std
     }
 }
 
-void playDealerHand(std::vector<int>& deck, std::vector<int>& hand) {
+void playDealerHand(std::vector<int>& deck, std::vector<int>& hand, stats& stats) {
     while (true) {
         const int value = calculateHandValue(hand);
         if (value < 17) {
-            drawCard(deck, hand, true);
+            drawCard(deck, hand, true, stats);
             continue;
         }
         if (value == 17 && isSoftHand(hand) && DEALER_HIT_ON_SOFT_17) {
-            drawCard(deck, hand, true);
+            drawCard(deck, hand, true, stats);
             continue;
         }
         break;
     }
 }
 
-void resolveHand(const Hand& player, const std::vector<int>& dealer) {
+void resolveHand(const Hand& player, const std::vector<int>& dealer, stats& stats) {
     const int p = calculateHandValue(player.cards);
     const int d = calculateHandValue(dealer);
 
@@ -465,58 +480,74 @@ void resolveHand(const Hand& player, const std::vector<int>& dealer) {
     }
 }
 
-void turnFull(std::vector<int>& deck, std::vector<int>& dealer, std::mt19937& rng, const float bet) {
+void turnFull(std::vector<int>& deck, std::vector<int>& dealer, std::mt19937& rng, const int64_t bet, stats& stats) {
     std::vector<Hand> hands;
     stats.bank -= bet; // upfront
     stats.totalBet += bet;
     hands.push_back(makeHand(bet));
 
-    dealInitialCards(deck, hands[0], dealer, rng, bet);
+    dealInitialCards(deck, hands[0], dealer, rng, bet, stats);
     stats.hands++;
 
-    if (detectBlackjacks(deck, hands[0], dealer, bet)) return;
+    if (detectBlackjacks(deck, hands[0], dealer, bet, stats)) return;
 
     if constexpr (INTERACTIVE) {
         std::cout << "Round " << stats.hands << std::endl;
-        interactiveHand(deck,hands,dealer);
+        interactiveHand(deck,hands,dealer, stats);
     } else {
-        playPlayerHands(deck, hands, dealer);
+        playPlayerHands(deck, hands, dealer, stats);
     }
-    playDealerHand(deck, dealer);
+    playDealerHand(deck, dealer, stats);
 
     for (size_t i = 0; i < hands.size(); ++i) {
         if (INTERACTIVE) std::cout << "Hand " << (i + 1) << std::endl;
-        resolveHand(hands[i], dealer);
+        resolveHand(hands[i], dealer, stats);
     }
 }
 // END TURN ACTIONS
 
-int main() {
-    printGlobalVars();
+void runSim(const uint64_t handsToPlay, stats& outStats, const uint64_t seed) {
+    stats local;
+    std::mt19937 rng(seed);
 
     std::vector<int> deck;
     deck.reserve(52 * NUMBER_DECKS);
+    shuffleDeck(deck, rng, local);
 
-    std::random_device rd;
-    std::mt19937 rng(rd());
+    std::vector<int> dealer = initHand();
 
-    shuffleDeck(deck, rng);
-    std::vector<int> handDealer = initHand();
-
-    for (int i = 0; i < NUMBER_HANDS; i++) {
-        float bet;
-        if constexpr (CARD_COUNTING == true) {
-            bet = betFromTrueCount() * DEFAULT_BET;
-        } else bet = DEFAULT_BET;
-
-        if (stats.bank < bet) {
-            printStats();
-            return 0;
-        }
-
-        turnFull(deck, handDealer, rng, bet);
+    for (uint64_t i = 0; i < handsToPlay; ++i) {
+        const int64_t bet = CARD_COUNTING ? betFromTrueCount(local) * DEFAULT_BET : DEFAULT_BET;
+        if (local.bank < bet) break;
+        turnFull(deck, dealer, rng, bet, local);
     }
 
-    printStats();
-    return 0;
+    outStats = local;
+}
+
+int main() {
+    const unsigned threads = std::thread::hardware_concurrency();
+    printGlobalVars(threads);
+
+    std::vector<std::thread> workers;
+    std::vector<stats> results(threads);
+    std::random_device dev;
+
+    for (unsigned i = 0; i < threads; ++i) {
+        workers.emplace_back(
+            runSim,
+            NUMBER_HANDS,
+            std::ref(results[i]),
+            dev() + i
+        );
+    }
+
+    for (auto& t : workers) t.join();
+
+    stats global;
+    for (const auto& s : results) {
+        global += s;
+    }
+
+    printStats(global, threads);
 }
