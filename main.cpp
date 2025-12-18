@@ -200,10 +200,10 @@ void doubleDown(std::vector<int>& deck, Hand& hand) {
 // HELPERS
 float betFromTrueCount() {
     if (stats.trueCount <= 0) return 1.0f;
-    if (stats.trueCount == 1) return 2.0f;
-    if (stats.trueCount == 2) return 4.0f;
-    if (stats.trueCount == 3) return 8.0f;
-    if (stats.trueCount == 4) return 12.0f;
+    if (stats.trueCount == 1) return 3.0f;
+    if (stats.trueCount == 2) return 6.0f;
+    if (stats.trueCount == 3) return 10.0f;
+    if (stats.trueCount == 4) return 14.0f;
     return 16.0f;
 }
 
