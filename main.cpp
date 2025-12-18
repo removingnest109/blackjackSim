@@ -3,9 +3,9 @@
 #include <random>
 #include <vector>
 
-constexpr int NUMBER_HANDS = 10000000;
+constexpr int NUMBER_HANDS = 100000000;
 constexpr int NUMBER_DECKS = 6;
-constexpr int CUT_CARD = 260;
+constexpr float PENETRATION = 0.75;
 constexpr float PLAYER_STARTING_BANK = 1000000;
 constexpr float DEFAULT_BET = 100.0;
 constexpr bool DEALER_HIT_ON_SOFT_17 = false;
@@ -37,6 +37,12 @@ struct Hand {
     bool splitAces = false;
 };
 
+enum class Action {
+    Hit,
+    Double,
+    Split,
+    Stand
+};
 
 stats stats;
 
@@ -44,48 +50,41 @@ stats stats;
 void printGlobalVars() {
     std::cout << "Number of decks: " << NUMBER_DECKS << std::endl;
     std::cout << "Number of hands being played: " << NUMBER_HANDS << std::endl;
-    std::cout << "Reshuffle at card " << CUT_CARD << std::endl;
+    std::cout << "Penetration before shuffle: " << PENETRATION * 100 << "%" << std::endl;
+    std::cout << "Reshuffle at card " << static_cast<int>(PENETRATION * NUMBER_DECKS * 52) << std::endl;
     std::cout << "Player starting bank: " << static_cast<int>(PLAYER_STARTING_BANK) << std::endl;
     if constexpr (DEALER_HIT_ON_SOFT_17) {
-        std::cout << "Dealer hits on soft 17\n";
+        std::cout << "Dealer hits on soft 17" << std::endl;
     } else {
-        std::cout << "Dealer stands on soft 17\n";
+        std::cout << "Dealer stands on soft 17" << std::endl;
     }
 }
 
 void printStats() {
-    std::cout << stats.hands << " Hands played" << std::endl;
-
-    std::cout << stats.dealerWins << " Dealer Wins" << std::endl;
-    std::cout << stats.dealerBlackjacks << " Dealer Blackjacks" << std::endl;
-
-    std::cout << stats.draw << " Draw" << std::endl;
-
-    std::cout << stats.playerWins << " Player Wins" << std::endl;
-    std::cout << stats.playerBlackjacks << " Player Blackjacks" << std::endl;
-
-    std::cout << stats.shuffles << " Shuffles" << std::endl;
-    std::cout << stats.cardsDealt << " Cards dealt" << std::endl;
-
-    std::cout << stats.splits << " Splits" << std::endl;
-    std::cout << stats.doubles << " Doubles" << std::endl;
-
     const float winPercent = (static_cast<float>(stats.playerWins) / (static_cast<float>(stats.playerWins) + static_cast<float>(stats.dealerWins)));
-    std::cout << "player win percentage excl draws: " << winPercent * 100 << "%" << std::endl;
-
-    std::cout << "player bank: " << static_cast<int>(stats.bank) << std::endl;
-
     const float profit = stats.bank - PLAYER_STARTING_BANK;
     const float evPerHand = profit / static_cast<float>(stats.hands);
     const float evPercent = profit / stats.totalBet;
-
+    std::cout << stats.hands << " Hands played" << std::endl;
+    std::cout << stats.dealerWins << " Dealer Wins" << std::endl;
+    std::cout << stats.dealerBlackjacks << " Dealer Blackjacks" << std::endl;
+    std::cout << stats.draw << " Draw" << std::endl;
+    std::cout << stats.playerWins << " Player Wins" << std::endl;
+    std::cout << stats.playerBlackjacks << " Player Blackjacks" << std::endl;
+    std::cout << stats.shuffles << " Shuffles" << std::endl;
+    std::cout << stats.cardsDealt << " Cards dealt" << std::endl;
+    std::cout << stats.splits << " Splits" << std::endl;
+    std::cout << stats.doubles << " Doubles" << std::endl;
+    std::cout << "player win percentage excl draws: " << winPercent * 100 << "%" << std::endl;
+    std::cout << "player bank: " << static_cast<int>(stats.bank) << std::endl;
+    std::cout << "profit: " << static_cast<int>(profit) << std::endl;
     std::cout << "EV per hand: " << evPerHand << " $" << std::endl;
     std::cout << "EV percentage: " << evPercent * 100 << "%" << std::endl;
 }
 
 void printIfInteractive(const std::string& msg) {
     if constexpr (INTERACTIVE) {
-        std::cout << msg << '\n';
+        std::cout << msg << std::endl;
     }
 }
 // END PRINT
@@ -146,7 +145,7 @@ void dealInitialCards(std::vector<int>& deck, Hand& handPlayer, std::vector<int>
         shuffleDeck(deck, rng);
     }
 
-    if (stats.cardsSinceShuffle > CUT_CARD) {
+    if (stats.cardsSinceShuffle > static_cast<int>(PENETRATION * NUMBER_DECKS * 52)) {
         shuffleDeck(deck, rng);
     }
 
@@ -266,106 +265,107 @@ bool detectBlackjacks(const std::vector<int>& deck, const Hand& handPlayer, cons
 }
 // END HELPERS
 
-// PLAYER DECISIONS
-bool shouldSplit(const int card, const int dealerUp) {
-    switch (card) {
-        case 11: return true;
-        case 8:  return true;
-        case 9:  return dealerUp != 7 && dealerUp != 10 && dealerUp != 11;
-        case 7:  return dealerUp <= 7;
-        case 6:  return dealerUp <= 6;
-        case 4:  return dealerUp == 5 || dealerUp == 6;
-        case 3:
-        case 2:  return dealerUp <= 7;
-        default: return false;
-    }
-}
+// HAND LOOKUP TABLES
+constexpr auto H = Action::Hit;
+constexpr auto D = Action::Double;
+constexpr auto P = Action::Split;
+constexpr auto S = Action::Stand;
 
-// TODO shouldHit, shouldStand
+constexpr Action HARD[22][12] = {
+    /* 0 */  {S,S,S,S,S,S,S,S,S,S,S,S},
+    /* 1 */  {S,S,S,S,S,S,S,S,S,S,S,S},
+    /* 2 */  {S,S,S,S,S,S,S,S,S,S,S,S},
+    /* 3 */  {S,S,S,S,S,S,S,S,S,S,S,S},
+    /* 4 */  {S,S,S,S,S,S,S,S,S,S,S,S},
+    /* 5 */  {S,S,H,H,H,H,H,H,H,H,H,H},
+    /* 6 */  {S,S,H,H,H,H,H,H,H,H,H,H},
+    /* 7 */  {S,S,H,H,H,H,H,H,H,H,H,H},
+    /* 8 */  {S,S,H,H,H,H,H,H,H,H,H,H},
+    /* 9 */  {S,S,H,D,D,D,D,H,H,H,H,H},
+    /* 10 */ {S,S,D,D,D,D,D,D,D,D,H,H},
+    /* 11 */ {S,S,D,D,D,D,D,D,D,D,D,D},
+    /* 12 */ {S,S,H,H,S,S,S,H,H,H,H,H},
+    /* 13 */ {S,S,S,S,S,S,S,H,H,H,H,H},
+    /* 14 */ {S,S,S,S,S,S,S,H,H,H,H,H},
+    /* 15 */ {S,S,S,S,S,S,S,H,H,H,H,H},
+    /* 16 */ {S,S,S,S,S,S,S,H,H,H,H,H},
+    /* 17 */ {S,S,S,S,S,S,S,S,S,S,S,S},
+    /* 18 */ {S,S,S,S,S,S,S,S,S,S,S,S},
+    /* 19 */ {S,S,S,S,S,S,S,S,S,S,S,S},
+    /* 20 */ {S,S,S,S,S,S,S,S,S,S,S,S},
+    /* 21 */ {S,S,S,S,S,S,S,S,S,S,S,S}
+};
 
-bool shouldDoubleHard(const int value, const int dealerUp) {
-    if (value == 11) return true;
-    if (value == 10) return dealerUp <= 9;
-    if (value == 9)  return dealerUp >= 3 && dealerUp <= 6;
-    return false;
-}
+constexpr Action SOFT[22][12] = {
+    /* 0–12 */ {S,S,S,S,S,S,S,S,S,S,S,S},
+                 {S,S,S,S,S,S,S,S,S,S,S,S},
+                 {S,S,S,S,S,S,S,S,S,S,S,S},
+                 {S,S,S,S,S,S,S,S,S,S,S,S},
+                 {S,S,S,S,S,S,S,S,S,S,S,S},
+                 {S,S,S,S,S,S,S,S,S,S,S,S},
+                 {S,S,S,S,S,S,S,S,S,S,S,S},
+                 {S,S,S,S,S,S,S,S,S,S,S,S},
+                 {S,S,S,S,S,S,S,S,S,S,S,S},
+                 {S,S,S,S,S,S,S,S,S,S,S,S},
+                 {S,S,S,S,S,S,S,S,S,S,S,S},
+                 {S,S,S,S,S,S,S,S,S,S,S,S},
+                 {S,S,S,S,S,S,S,S,S,S,S,S},
 
-bool shouldDoubleSoft(const int value, const int dealerUp) {
-    switch (value) {
-        case 13:
-        case 14: return dealerUp >= 5 && dealerUp <= 6;
-        case 15:
-        case 16: return dealerUp >= 4 && dealerUp <= 6;
-        case 17: return dealerUp >= 3 && dealerUp <= 6;
-        case 18: return dealerUp >= 3 && dealerUp <= 6;
-        default: return false;
-    }
+    /* 13 A2 */ {S,S,H,H,H,D,D,H,H,H,H,H},
+    /* 14 A3 */ {S,S,H,H,H,D,D,H,H,H,H,H},
+    /* 15 A4 */ {S,S,H,H,D,D,D,H,H,H,H,H},
+    /* 16 A5 */ {S,S,H,H,D,D,D,H,H,H,H,H},
+    /* 17 A6 */ {S,S,H,D,D,D,D,H,H,H,H,H},
+    /* 18 A7 */ {S,S,S,D,D,D,D,S,H,H,H,H},
+    /* 19 A8 */ {S,S,S,S,S,S,S,S,S,S,S,S},
+    /* 20 A9 */ {S,S,S,S,S,S,S,S,S,S,S,S},
+    /* 21 */    {S,S,S,S,S,S,S,S,S,S,S,S}
+};
+
+constexpr Action PAIR[12][12] = {
+    /* 0 */  {S,S,S,S,S,S,S,S,S,S,S,S},
+    /* 1 */  {S,S,S,S,S,S,S,S,S,S,S,S},
+
+    /* 2,2 */ {S,S,P,P,P,P,P,P,H,H,H,H},
+    /* 3,3 */ {S,S,P,P,P,P,P,P,H,H,H,H},
+    /* 4,4 */ {S,S,H,H,H,P,P,H,H,H,H,H},
+    /* 5,5 */ {S,S,D,D,D,D,D,D,D,D,H,H},
+    /* 6,6 */ {S,S,P,P,P,P,P,H,H,H,H,H},
+    /* 7,7 */ {S,S,P,P,P,P,P,P,H,H,H,H},
+    /* 8,8 */ {S,S,P,P,P,P,P,P,P,P,P,P},
+    /* 9,9 */ {S,S,P,P,P,P,P,S,P,P,S,S},
+    /*10,10*/ {S,S,S,S,S,S,S,S,S,S,S,S},
+    /* A,A */  {S,S,P,P,P,P,P,P,P,P,P,P}
+};
+
+Action getAction(const int total, const int dealerUp, const bool isSoft, const bool isPair, const int pairRank)
+{
+    if (isPair && pairRank >= 2 && pairRank <= 11) return PAIR[pairRank][dealerUp];
+    if (isSoft && total >= 13 && total <= 20) return SOFT[total][dealerUp];
+    if (total >= 5 && total <= 21) return HARD[total][dealerUp];
+    return Action::Stand;
 }
-// END PLAYER DECISIONS
+// END HAND LOOKUP TABLES
 
 // TURN ACTIONS
 void playPlayerHands(
     std::vector<int>& deck, std::vector<Hand>& hands, const std::vector<int>& dealer) {
     for (size_t i = 0; i < hands.size(); ++i) {
-        while (true) {
+        bool done = false;
+        while (!done) {
             Hand& hand = hands[i];
             const int dealerUp = dealer[0];
             const int value = calculateHandValue(hand.cards);
 
-            // HAVE TO STAND ON SPLIT ACES
-            if (hand.splitAces) {
+            if (hand.splitAces || value >= 21) {
                 break;
             }
 
-            // SPLIT
-            if (hand.cards.size() == 2 && hand.cards[0] == hand.cards[1] && hands.size() < 4) {
-                if (shouldSplit(hand.cards[0], dealerUp)) {
-                    hands.push_back(split(deck, hand));
-                    continue;
-                }
-            }
-
-            // SOFT HAND
-            if (isSoftHand(hand.cards)) {
-                if (shouldDoubleSoft(value, dealerUp)) {
-                    doubleDown(deck, hand);
-                    break;
-                }
-                if (value <= 17) {
-                    drawCard(deck, hand.cards, true);
-                    continue;
-                }
-                if (value == 18) {
-                    if (dealerUp >= 9) {
-                        drawCard(deck, hand.cards, true);
-                        continue;
-                    }
-                    break;
-                }
-                break; // soft 19+
-            }
-
-            // HARD HAND
-            if (!isSoftHand(hand.cards)) {
-                if (shouldDoubleHard(value, dealerUp)) {
-                    doubleDown(deck, hand);
-                    break;
-                }
-                if (value <= 11) {
-                    drawCard(deck, hand.cards, true);
-                    continue;
-                }
-                if (value == 12) {
-                    if (dealerUp >= 4 && dealerUp <= 6) break;
-                    drawCard(deck, hand.cards, true);
-                    continue;
-                }
-                if (value >= 13 && value <= 16) {
-                    if (dealerUp <= 6) break;
-                    drawCard(deck, hand.cards, true);
-                    continue;
-                }
-                break; // 17+
+            switch (getAction(value, dealerUp, isSoftHand(hand.cards), hand.cards.size() == 2 && hand.cards[0] == hand.cards[1] && hands.size() < 4, hand.cards[0])) {
+                case Action::Hit:    drawCard(deck, hand.cards, true); break;
+                case Action::Double: doubleDown(deck, hand); done = true; break;
+                case Action::Split:  hands.push_back(split(deck, hand)); break;
+                case Action::Stand:  default: done = true; break;
             }
         }
     }
