@@ -1,12 +1,13 @@
 #include <algorithm>
+#include <iomanip>
 #include <iostream>
 #include <random>
 #include <vector>
 #include <thread>
 
-constexpr int NUMBER_HANDS = 1000000;
+constexpr int NUMBER_HANDS = 10000000;
 constexpr int NUMBER_DECKS = 6;
-constexpr int PLAYER_STARTING_BANK = 100000;
+constexpr int PLAYER_STARTING_BANK = 1000000;
 constexpr int DEFAULT_BET = 100;
 constexpr double PENETRATION = 0.75;
 constexpr bool DEALER_HIT_ON_SOFT_17 = false;
@@ -26,7 +27,7 @@ struct stats {
     int64_t doubles = 0;
     int64_t cardsSinceShuffle = 0;
     int64_t runningCount = 0;
-    int64_t trueCount = 0;
+    double trueCount = 0;
     int64_t bank = PLAYER_STARTING_BANK;
     int64_t totalBet = 0;
 
@@ -112,12 +113,11 @@ void drawCard(std::vector<int>& deck, std::vector<int>& cards, const bool visibl
     stats.cardsSinceShuffle++;
     stats.cardsDealt++;
 
-    if (visible) {
-        if (card < 7) stats.runningCount++;
-        if (card > 9) stats.runningCount--;
-        const double decksRemaining = static_cast<double>(deck.size()) / 52.0;
-        const double trueCount = static_cast<double>(stats.runningCount) / decksRemaining;
-        stats.trueCount = static_cast<int>(std::floor(trueCount));
+    if constexpr (CARD_COUNTING) {
+        if (visible) {
+            if (card < 7) stats.runningCount++;
+            if (card > 9) stats.runningCount--;
+        }
     }
 
     deck.pop_back();
@@ -214,12 +214,17 @@ void doubleDown(std::vector<int>& deck, Hand& hand, stats& stats) {
 // END CARD ACTIONS
 
 // HELPERS
+void getTrueCount(const std::vector<int>& deck, stats& stats) {
+    const double decksRemaining = static_cast<double>(deck.size()) / 52.0;
+    stats.trueCount = static_cast<double>(stats.runningCount) / decksRemaining;
+}
+
 int64_t betFromTrueCount(const stats& stats) {
     if (stats.trueCount <= 0) return 1;
-    if (stats.trueCount == 1) return 3;
-    if (stats.trueCount == 2) return 6;
-    if (stats.trueCount == 3) return 10;
-    if (stats.trueCount == 4) return 14;
+    if (stats.trueCount <= 2) return 3;
+    if (stats.trueCount <= 3) return 6;
+    if (stats.trueCount <= 4) return 10;
+    if (stats.trueCount <= 5) return 14;
     return 16;
 }
 
@@ -392,7 +397,6 @@ void interactiveHand(std::vector<int>& deck, std::vector<Hand>& hands, const std
             Hand& hand = hands[i];
             const int value = calculateHandValue(hand.cards);
 
-            std::cout << "Bank: " << static_cast<int>(stats.bank) << std::endl;
             std::cout << "Hand " << (i + 1) << " (bet $" << hand.bet << "): ";
             for (const int c : hand.cards) std::cout << c << " ";
             std::cout << " -> " << value << std::endl;
@@ -517,7 +521,14 @@ void runSim(const uint64_t handsToPlay, stats& outStats, const uint64_t seed) {
     std::vector<int> dealer = initHand();
 
     for (uint64_t i = 0; i < handsToPlay; ++i) {
-        const int64_t bet = CARD_COUNTING ? betFromTrueCount(local) * DEFAULT_BET : DEFAULT_BET;
+        if (CARD_COUNTING) getTrueCount(deck, local);
+        int64_t bet = CARD_COUNTING ? betFromTrueCount(local) * DEFAULT_BET : DEFAULT_BET;
+        if (INTERACTIVE) {
+            if (CARD_COUNTING) std::cout << "count (true count): " << local.runningCount << " (" << std::setprecision (2) << std::fixed << local.trueCount << ")" << std::endl;
+            std::cout << "bank: $" << local.bank << std::endl;
+            std::cout << "enter bet: $";
+            std::cin >> bet;
+        }
         if (local.bank < bet) break;
         turnFull(deck, dealer, rng, bet, local);
     }
@@ -526,7 +537,11 @@ void runSim(const uint64_t handsToPlay, stats& outStats, const uint64_t seed) {
 }
 
 int main() {
-    const unsigned threads = std::thread::hardware_concurrency();
+    unsigned threads;
+    if constexpr (!INTERACTIVE) {
+        threads = std::thread::hardware_concurrency();
+    } else threads = 1;
+
     printGlobalVars(threads);
 
     std::vector<std::thread> workers;
