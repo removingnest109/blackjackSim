@@ -5,14 +5,14 @@
 #include <vector>
 #include <thread>
 
-constexpr int NUMBER_HANDS = 10000000;
-constexpr int NUMBER_DECKS = 6;
-constexpr int PLAYER_STARTING_BANK = 1000000;
-constexpr int DEFAULT_BET = 100;
-constexpr double PENETRATION = 0.75;
-constexpr bool DEALER_HIT_ON_SOFT_17 = false;
-constexpr bool INTERACTIVE = false;
-constexpr bool CARD_COUNTING = true;
+#define NUMBER_HANDS 10000000
+#define NUMBER_DECKS 6
+#define PLAYER_STARTING_BANK 100000
+#define DEFAULT_BET 10
+#define PENETRATION 0.75
+#define DEALER_HIT_ON_SOFT_17 false
+#define INTERACTIVE false
+#define CARD_COUNTING true
 
 struct stats {
     int64_t hands = 0;
@@ -454,7 +454,7 @@ void resolveHand(const Hand& player, const std::vector<int>& dealer, stats& stat
     const int p = calculateHandValue(player.cards);
     const int d = calculateHandValue(dealer);
 
-    if (INTERACTIVE) {
+    if constexpr (INTERACTIVE) {
         std::cout << "Player Hand: ";
         for (const int c : player.cards) std::cout << c << " ";
         std::cout << " -> " << p << std::endl;
@@ -504,7 +504,7 @@ void turnFull(std::vector<int>& deck, std::vector<int>& dealer, std::mt19937& rn
     playDealerHand(deck, dealer, stats);
 
     for (size_t i = 0; i < hands.size(); ++i) {
-        if (INTERACTIVE) std::cout << "Hand " << (i + 1) << std::endl;
+        if constexpr (INTERACTIVE) std::cout << "Hand " << (i + 1) << std::endl;
         resolveHand(hands[i], dealer, stats);
     }
 }
@@ -521,10 +521,10 @@ void runSim(const uint64_t handsToPlay, stats& outStats, const uint64_t seed) {
     std::vector<int> dealer = initHand();
 
     for (uint64_t i = 0; i < handsToPlay; ++i) {
-        if (CARD_COUNTING) getTrueCount(deck, local);
+        if constexpr (CARD_COUNTING) getTrueCount(deck, local);
         int64_t bet = CARD_COUNTING ? betFromTrueCount(local) * DEFAULT_BET : DEFAULT_BET;
-        if (INTERACTIVE) {
-            if (CARD_COUNTING) std::cout << "count (true count): " << local.runningCount << " (" << std::setprecision (2) << std::fixed << local.trueCount << ")" << std::endl;
+        if constexpr (INTERACTIVE) {
+            if constexpr (CARD_COUNTING) std::cout << "count (true count): " << local.runningCount << " (" << std::setprecision (2) << std::fixed << local.trueCount << ")" << std::endl;
             std::cout << "bank: $" << local.bank << std::endl;
             std::cout << "enter bet: $";
             std::cin >> bet;
