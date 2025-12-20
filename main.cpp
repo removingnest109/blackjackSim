@@ -52,9 +52,15 @@ struct stats {
 struct Hand {
     std::array<int, 22> cards{};
     int cardCount = 0;
+    int value = 0;
+    int aceCount = 0;
     int64_t bet{};
     bool doubled = false;
     bool splitAces = false;
+
+    [[nodiscard]] bool isSoft() const {
+        return value <= 21 && aceCount > 0;
+    }
 };
 
 struct Deck {
@@ -68,6 +74,24 @@ enum class Action {
     Split,
     Stand
 };
+
+// FAST RNG
+struct FastRNG {
+    uint64_t state;
+    explicit FastRNG(const uint64_t seed) : state(seed) {
+        if (state == 0) state = 0xACE1;
+    }
+    uint64_t operator()() {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        return state;
+    }
+    static constexpr uint64_t min() { return 0; }
+    static constexpr uint64_t max() { return UINT64_MAX; }
+    using result_type = uint64_t;
+};
+// END FAST RNG
 
 // PRINT
 void printGlobalVars(const uint threads) {
@@ -117,12 +141,19 @@ void drawCard(Deck& deck, Hand& hand, const bool visible, stats& stats) {
     if constexpr (CARD_COUNTING) {
         if (visible) {
             if (card < 7) stats.runningCount++;
-            if (card > 9) stats.runningCount--;
+            else if (card > 9) stats.runningCount--;
         }
     }
 
     deck.size--;
     hand.cards[hand.cardCount++] = card;
+    hand.value += card;
+    if (card == 11) hand.aceCount++;
+
+    while (hand.value > 21 && hand.aceCount > 0) {
+        hand.value -= 10;
+        hand.aceCount--;
+    }
 }
 
 void initDeck(Deck& deck) {
@@ -143,7 +174,7 @@ void initDeck(Deck& deck) {
     }
 }
 
-void shuffleDeck(Deck& deck, std::mt19937& rng, stats& stats) {
+void shuffleDeck(Deck& deck, FastRNG& rng, stats& stats) {
     initDeck(deck);
     std::shuffle(deck.cards.begin(), deck.cards.begin() + deck.size, rng);
     stats.shuffles++;
@@ -152,12 +183,16 @@ void shuffleDeck(Deck& deck, std::mt19937& rng, stats& stats) {
     stats.trueCount = 0;
 }
 
-void dealInitialCards(Deck& deck, Hand& handPlayer, Hand& handDealer, std::mt19937& rng, const int64_t bet, stats& stats) {
+void dealInitialCards(Deck& deck, Hand& handPlayer, Hand& handDealer, FastRNG& rng, const int64_t bet, stats& stats) {
     handPlayer.cardCount = 0;
+    handPlayer.value = 0;
+    handPlayer.aceCount = 0;
     handPlayer.doubled = false;
     handPlayer.bet = bet;
     handPlayer.splitAces = false;
     handDealer.cardCount = 0;
+    handDealer.value = 0;
+    handDealer.aceCount = 0;
     handDealer.doubled = false;
     handDealer.splitAces = false;
 
@@ -178,6 +213,8 @@ void dealInitialCards(Deck& deck, Hand& handPlayer, Hand& handDealer, std::mt199
 Hand makeHand(const int64_t bet) {
     Hand h;
     h.cardCount = 0;
+    h.value = 0;
+    h.aceCount = 0;
     h.bet = bet;
     h.doubled = false;
     h.splitAces = false;
@@ -197,7 +234,17 @@ Hand split(Deck& deck, Hand& originalHand, stats& stats) {
     }
 
     originalHand.cardCount--;
+    if (card == 11) {
+        originalHand.value = 11;
+        originalHand.aceCount = 1;
+    } else {
+        originalHand.value = card;
+        originalHand.aceCount = 0;
+    }
+
     newHand.cards[newHand.cardCount++] = card;
+    newHand.value = card;
+    newHand.aceCount = (card == 11 ? 1 : 0);
 
     drawCard(deck, originalHand, true, stats);
     drawCard(deck, newHand, true, stats);
@@ -231,63 +278,42 @@ int64_t betFromTrueCount(const stats& stats) {
     return 16;
 }
 
-int calculateHandValue(const Hand& hand) {
-    int total = 0;
-    int aces = 0;
-
-    for (int i = 0; i < hand.cardCount; ++i) {
-        const int card = hand.cards[i];
-        total += card;
-        if (card == 11) aces++;
-    }
-
-    while (total > 21 && aces > 0) {
-        total -= 10;
-        aces--;
-    }
-
-    return total;
-}
-
-bool isSoftHand(const Hand& hand) {
-    int total = 0;
-    int aces = 0;
-    for (int i = 0; i < hand.cardCount; ++i) {
-        const int card = hand.cards[i];
-        total += card;
-        if (card == 11) aces++;
-    }
-    return (total <= 21 && aces > 0);
-}
-
 bool isBlackjack(const Hand& hand) {
-    return !hand.splitAces && hand.cardCount == 2 && calculateHandValue(hand) == 21;
+    return !hand.splitAces && hand.cardCount == 2 && hand.value == 21;
 }
 
 bool detectBlackjacks(const Deck& deck, const Hand& handPlayer, const Hand& handDealer, const int64_t bet, stats& stats) {
-    if (isBlackjack(handDealer) && isBlackjack(handPlayer)) {
+    const bool playerBJ = isBlackjack(handPlayer);
+    const bool dealerBJ = isBlackjack(handDealer);
+
+    if (playerBJ && dealerBJ) {
         if (const int hole = handDealer.cards[1]; hole < 7) stats.runningCount++;
         else if (hole > 9) stats.runningCount--;
         const double decksRemaining = static_cast<double>(deck.size) / 52.0;
-        stats.trueCount = static_cast<int>(std::floor(static_cast<long double>(stats.runningCount) / decksRemaining));
+        stats.trueCount = static_cast<double>(stats.runningCount) / decksRemaining;
         stats.draw++;
         if constexpr (INTERACTIVE) std::cout << "Push" << std::endl;
         stats.bank += bet; // return original bet
-    } else if (isBlackjack(handDealer)) {
+        return true;
+    }
+    if (dealerBJ) {
         if (const int hole = handDealer.cards[1]; hole < 7) stats.runningCount++;
         else if (hole > 9) stats.runningCount--;
         const double decksRemaining = static_cast<double>(deck.size) / 52.0;
-        stats.trueCount = static_cast<int>(std::floor(static_cast<long double>(stats.runningCount) / decksRemaining));
+        stats.trueCount = static_cast<double>(stats.runningCount) / decksRemaining;
         stats.dealerWins++;
         stats.dealerBlackjacks++;
         if constexpr (INTERACTIVE) std::cout << "Dealer Blackjack" << std::endl;
-    } else if (isBlackjack(handPlayer)) {
+        return true;
+    }
+    if (playerBJ) {
         stats.playerWins++;
         stats.playerBlackjacks++;
         if constexpr (INTERACTIVE) std::cout << "Player Blackjack" << std::endl;
         stats.bank += static_cast<int64_t>(static_cast<double>(bet) * 2.5); // original bet + 1.5x
+        return true;
     }
-    return (isBlackjack(handPlayer) || isBlackjack(handDealer));
+    return false;
 }
 // END HELPERS
 
@@ -379,13 +405,12 @@ void playPlayerHands(Deck& deck, Hand hands[], int& handCount, const Hand& deale
         while (!done) {
             Hand& hand = hands[i];
             const int dealerUp = dealer.cards[0];
-            const int value = calculateHandValue(hand);
 
-            if (hand.splitAces || value >= 21) {
+            if (hand.splitAces || hand.value >= 21) {
                 break;
             }
 
-            switch (getAction(value, dealerUp, isSoftHand(hand), hand.cardCount == 2 && hand.cards[0] == hand.cards[1] && handCount < 4, hand.cards[0])) {
+            switch (getAction(hand.value, dealerUp, hand.isSoft(), hand.cardCount == 2 && hand.cards[0] == hand.cards[1] && handCount < 4, hand.cards[0])) {
                 case Action::Hit:    drawCard(deck, hand, true, stats); break;
                 case Action::Double: doubleDown(deck, hand, stats); done = true; break;
                 case Action::Split:  hands[handCount++] = split(deck, hand, stats); break;
@@ -399,14 +424,13 @@ void interactiveHand(Deck& deck, Hand hands[], int& handCount, const Hand& deale
     for (int i = 0; i < handCount; ++i) {
         while (true) {
             Hand& hand = hands[i];
-            const int value = calculateHandValue(hand);
 
             std::cout << "Hand " << (i + 1) << " (bet $" << hand.bet << "): ";
             for (int j = 0; j < hand.cardCount; ++j) std::cout << hand.cards[j] << " ";
-            std::cout << " -> " << value << std::endl;
+            std::cout << " -> " << hand.value << std::endl;
             std::cout << "Dealer showing: " << dealer.cards[0] << std::endl;
 
-            if (value >= 21 || hand.splitAces) {
+            if (hand.value >= 21 || hand.splitAces) {
                 break;
             }
 
@@ -441,12 +465,11 @@ void interactiveHand(Deck& deck, Hand hands[], int& handCount, const Hand& deale
 
 void playDealerHand(Deck& deck, Hand& hand, stats& stats) {
     while (true) {
-        const int value = calculateHandValue(hand);
-        if (value < 17) {
+        if (hand.value < 17) {
             drawCard(deck, hand, true, stats);
             continue;
         }
-        if (value == 17 && isSoftHand(hand) && DEALER_HIT_ON_SOFT_17) {
+        if (hand.value == 17 && hand.isSoft() && DEALER_HIT_ON_SOFT_17) {
             drawCard(deck, hand, true, stats);
             continue;
         }
@@ -455,30 +478,27 @@ void playDealerHand(Deck& deck, Hand& hand, stats& stats) {
 }
 
 void resolveHand(const Hand& player, const Hand& dealer, stats& stats) {
-    const int p = calculateHandValue(player);
-    const int d = calculateHandValue(dealer);
-
     if constexpr (INTERACTIVE) {
         std::cout << "Player Hand: ";
         for (int i = 0; i < player.cardCount; ++i) std::cout << player.cards[i] << " ";
-        std::cout << " -> " << p << std::endl;
+        std::cout << " -> " << player.value << std::endl;
         std::cout << "Dealer Hand: ";
         for (int i = 0; i < dealer.cardCount; ++i) std::cout << dealer.cards[i] << " ";
-        std::cout << " -> " << d << std::endl;
+        std::cout << " -> " << dealer.value << std::endl;
     }
 
-    if (p > 21) {
+    if (player.value > 21) {
         stats.dealerWins++;
         if constexpr (INTERACTIVE) std::cout << "Player Bust" << std::endl;
-    } else if (d > 21) {
+    } else if (dealer.value > 21) {
         stats.playerWins++;
         if constexpr (INTERACTIVE) std::cout << "Dealer Bust" << std::endl;
         stats.bank += player.bet * 2;
-    } else if (p > d) {
+    } else if (player.value > dealer.value) {
         stats.playerWins++;
         if constexpr (INTERACTIVE) std::cout << "Player Win" << std::endl;
         stats.bank += player.bet * 2;
-    } else if (p < d) {
+    } else if (player.value < dealer.value) {
         stats.dealerWins++;
         if constexpr (INTERACTIVE) std::cout << "Dealer Win" << std::endl;
     } else {
@@ -488,7 +508,7 @@ void resolveHand(const Hand& player, const Hand& dealer, stats& stats) {
     }
 }
 
-void turnFull(Deck& deck, Hand& dealer, std::mt19937& rng, const int64_t bet, stats& stats) {
+void turnFull(Deck& deck, Hand& dealer, FastRNG& rng, const int64_t bet, stats& stats) {
     Hand hands[4];
     int handCount = 1;
     stats.bank -= bet; // upfront
@@ -517,7 +537,7 @@ void turnFull(Deck& deck, Hand& dealer, std::mt19937& rng, const int64_t bet, st
 
 void runSim(const uint64_t handsToPlay, stats& outStats, const uint64_t seed) {
     stats local;
-    std::mt19937 rng(seed);
+    FastRNG rng(seed);
 
     Deck deck;
     shuffleDeck(deck, rng, local);
