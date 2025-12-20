@@ -98,12 +98,6 @@ void printStats(const stats& stats, const uint threads) {
     std::cout << "Average EV per hand: " << evPerHand << " $" << std::endl;
     std::cout << "Average EV percentage: " << evPercent * 100 << "%" << std::endl;
 }
-
-void printIfInteractive(const std::string& msg) {
-    if constexpr (INTERACTIVE) {
-        std::cout << msg << std::endl;
-    }
-}
 // END PRINT
 
 // CARD ACTIONS
@@ -266,7 +260,7 @@ bool detectBlackjacks(const std::vector<int>& deck, const Hand& handPlayer, cons
         const double decksRemaining = static_cast<double>(deck.size()) / 52.0;
         stats.trueCount = static_cast<int>(std::floor(static_cast<long double>(stats.runningCount) / decksRemaining));
         stats.draw++;
-        printIfInteractive("Push");
+        if constexpr (INTERACTIVE) std::cout << "Push" << std::endl;
         stats.bank += bet; // return original bet
     } else if (isBlackjack(handDealer, false)) {
         if (const int hole = handDealer[1]; hole < 7) stats.runningCount++;
@@ -275,11 +269,11 @@ bool detectBlackjacks(const std::vector<int>& deck, const Hand& handPlayer, cons
         stats.trueCount = static_cast<int>(std::floor(static_cast<long double>(stats.runningCount) / decksRemaining));
         stats.dealerWins++;
         stats.dealerBlackjacks++;
-        printIfInteractive("Dealer Blackjack");
+        if constexpr (INTERACTIVE) std::cout << "Dealer Blackjack" << std::endl;
     } else if (isBlackjack(handPlayer.cards, handPlayer.splitAces)) {
         stats.playerWins++;
         stats.playerBlackjacks++;
-        printIfInteractive("Player Blackjack");
+        if constexpr (INTERACTIVE) std::cout << "Player Blackjack" << std::endl;
         stats.bank += static_cast<int64_t>(static_cast<double>(bet) * 2.5); // original bet + 1.5x
     }
     return (isBlackjack(handPlayer.cards, handPlayer.splitAces) || isBlackjack(handDealer, false));
@@ -464,21 +458,21 @@ void resolveHand(const Hand& player, const std::vector<int>& dealer, stats& stat
 
     if (p > 21) {
         stats.dealerWins++;
-        printIfInteractive("Player Bust");
+        if constexpr (INTERACTIVE) std::cout << "Player Bust" << std::endl;
     } else if (d > 21) {
         stats.playerWins++;
-        printIfInteractive("Dealer Bust");
+        if constexpr (INTERACTIVE) std::cout << "Dealer Bust" << std::endl;
         stats.bank += player.bet * 2;
     } else if (p > d) {
         stats.playerWins++;
-        printIfInteractive("Player Win");
+        if constexpr (INTERACTIVE) std::cout << "Player Win" << std::endl;
         stats.bank += player.bet * 2;
     } else if (p < d) {
         stats.dealerWins++;
-        printIfInteractive("Dealer Win");
+        if constexpr (INTERACTIVE) std::cout << "Dealer Win" << std::endl;
     } else {
         stats.draw++;
-        printIfInteractive("Push");
+        if constexpr (INTERACTIVE) std::cout << "Push" << std::endl;
         stats.bank += player.bet;
     }
 }
