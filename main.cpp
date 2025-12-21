@@ -1,9 +1,7 @@
-#include <algorithm>
 #include <array>
 #include <iomanip>
 #include <iostream>
 #include <random>
-#include <vector>
 #include <thread>
 
 #define NUMBER_HANDS 10000000
@@ -228,23 +226,19 @@ Hand split(Deck& deck, Hand& originalHand, stats& stats) {
 
     const int card = originalHand.cards[originalHand.cardCount - 1];
 
+    originalHand.value = card;
+    originalHand.cardCount--;
+
     if (card == 11) {
         originalHand.splitAces = true;
         newHand.splitAces = true;
-    }
-
-    originalHand.cardCount--;
-    if (card == 11) {
         originalHand.value = 11;
         originalHand.aceCount = 1;
-    } else {
-        originalHand.value = card;
-        originalHand.aceCount = 0;
+        newHand.aceCount = 1;
     }
 
     newHand.cards[newHand.cardCount++] = card;
     newHand.value = card;
-    newHand.aceCount = (card == 11 ? 1 : 0);
 
     drawCard(deck, originalHand, true, stats);
     drawCard(deck, newHand, true, stats);
