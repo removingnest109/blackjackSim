@@ -13,6 +13,8 @@
 #define INTERACTIVE false
 #define CARD_COUNTING true
 
+static constexpr int8_t countTable[12] = {0,0,1,1,1,1,1,0,0,0,-1,-1};
+
 struct stats {
     int64_t hands = 0;
     int64_t playerWins = 0;
@@ -137,10 +139,7 @@ void drawCard(Deck& deck, Hand& hand, const bool visible, stats& stats) {
     stats.cardsDealt++;
 
     if constexpr (CARD_COUNTING) {
-        if (visible) {
-            if (card < 7) stats.runningCount++;
-            else if (card > 9) stats.runningCount--;
-        }
+        stats.runningCount += visible * countTable[card];
     }
 
     deck.size--;
