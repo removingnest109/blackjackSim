@@ -278,22 +278,17 @@ bool isBlackjack(const Hand& hand) {
 bool detectBlackjacks(const Deck& deck, const Hand& handPlayer, const Hand& handDealer, const int64_t bet, stats& stats) {
     const bool playerBJ = isBlackjack(handPlayer);
     const bool dealerBJ = isBlackjack(handDealer);
+    const int hole = handDealer.cards[1];
 
     if (playerBJ && dealerBJ) {
-        if (const int hole = handDealer.cards[1]; hole < 7) stats.runningCount++;
-        else if (hole > 9) stats.runningCount--;
-        const double decksRemaining = static_cast<double>(deck.size) / 52.0;
-        stats.trueCount = static_cast<double>(stats.runningCount) / decksRemaining;
+        stats.runningCount += countTable[hole];
         stats.draw++;
         if constexpr (INTERACTIVE) std::cout << "Push" << std::endl;
         stats.bank += bet; // return original bet
         return true;
     }
     if (dealerBJ) {
-        if (const int hole = handDealer.cards[1]; hole < 7) stats.runningCount++;
-        else if (hole > 9) stats.runningCount--;
-        const double decksRemaining = static_cast<double>(deck.size) / 52.0;
-        stats.trueCount = static_cast<double>(stats.runningCount) / decksRemaining;
+        stats.runningCount += countTable[hole];
         stats.dealerWins++;
         stats.dealerBlackjacks++;
         if constexpr (INTERACTIVE) std::cout << "Dealer Blackjack" << std::endl;
@@ -457,16 +452,8 @@ void interactiveHand(Deck& deck, Hand hands[], int& handCount, const Hand& deale
 }
 
 void playDealerHand(Deck& deck, Hand& hand, stats& stats) {
-    while (true) {
-        if (hand.value < 17) {
-            drawCard(deck, hand, true, stats);
-            continue;
-        }
-        if (hand.value == 17 && hand.isSoft() && DEALER_HIT_ON_SOFT_17) {
-            drawCard(deck, hand, true, stats);
-            continue;
-        }
-        break;
+    while (hand.value < 17 || (DEALER_HIT_ON_SOFT_17 && hand.value == 17 && hand.aceCount > 0)) {
+        drawCard(deck, hand, true, stats);
     }
 }
 
@@ -528,7 +515,7 @@ void turnFull(Deck& deck, Hand& dealer, FastRNG& rng, const int64_t bet, stats& 
 }
 // END TURN ACTIONS
 
-void runSim(const uint64_t handsToPlay, stats& outStats, const uint64_t seed) {
+void runSim(stats& outStats, const uint64_t seed) {
     stats local;
     FastRNG rng(seed);
 
@@ -537,7 +524,7 @@ void runSim(const uint64_t handsToPlay, stats& outStats, const uint64_t seed) {
 
     Hand dealer;
 
-    for (uint64_t i = 0; i < handsToPlay; ++i) {
+    for (uint64_t i = 0; i < NUMBER_HANDS; ++i) {
         if constexpr (CARD_COUNTING) getTrueCount(deck, local);
         int64_t bet = CARD_COUNTING ? betFromTrueCount(local) * DEFAULT_BET : DEFAULT_BET;
         if constexpr (INTERACTIVE) {
@@ -554,10 +541,8 @@ void runSim(const uint64_t handsToPlay, stats& outStats, const uint64_t seed) {
 }
 
 int main() {
-    unsigned threads;
-    if constexpr (!INTERACTIVE) {
-        threads = std::thread::hardware_concurrency();
-    } else threads = 1;
+    unsigned threads = 1;
+    if constexpr (!INTERACTIVE) threads = std::thread::hardware_concurrency();
 
     printGlobalVars(threads);
 
@@ -568,7 +553,6 @@ int main() {
     for (unsigned i = 0; i < threads; ++i) {
         workers.emplace_back(
             runSim,
-            NUMBER_HANDS,
             std::ref(results[i]),
             dev() + i
         );
