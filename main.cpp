@@ -78,7 +78,7 @@ enum class Action {
 // FAST RNG
 struct FastRNG {
     uint64_t state;
-    explicit FastRNG(const uint64_t seed) : state(seed) {
+    explicit FastRNG(const uint64_t& seed) : state(seed) {
         if (state == 0) state = 0xACE1;
     }
     uint64_t operator()() {
@@ -94,7 +94,7 @@ struct FastRNG {
 // END FAST RNG
 
 // PRINT
-void printGlobalVars(const uint threads) {
+void printGlobalVars(const uint& threads) {
     std::cout << "Number of independent players simulated: " << threads << std::endl;
     std::cout << "Number of hands per player: " << NUMBER_HANDS << std::endl;
     std::cout << "Player starting bank: " << PLAYER_STARTING_BANK << std::endl;
@@ -108,7 +108,7 @@ void printGlobalVars(const uint threads) {
     }
 }
 
-void printStats(const stats& stats, const uint threads) {
+void printStats(const stats& stats, const uint& threads) {
     const double winPercent = (static_cast<double>(stats.playerWins) / (static_cast<double>(stats.playerWins) + static_cast<double>(stats.dealerWins)));
     const int64_t profit = stats.bank - (PLAYER_STARTING_BANK * threads);
     const double evPerHand = static_cast<double>(profit) / static_cast<double>(stats.hands);
@@ -132,7 +132,7 @@ void printStats(const stats& stats, const uint threads) {
 // END PRINT
 
 // CARD ACTIONS
-void drawCard(Deck& deck, Hand& hand, const bool visible, stats& stats) {
+void drawCard(Deck& deck, Hand& hand, const bool& visible, stats& stats) {
     const int card = deck.cards[deck.size - 1];
 
     stats.cardsSinceShuffle++;
@@ -180,7 +180,7 @@ void shuffleDeck(Deck& deck, FastRNG& rng, stats& stats) {
     stats.trueCount = 0;
 }
 
-void dealInitialCards(Deck& deck, Hand& handPlayer, Hand& handDealer, FastRNG& rng, const int64_t bet, stats& stats) {
+void dealInitialCards(Deck& deck, Hand& handPlayer, Hand& handDealer, FastRNG& rng, const int64_t& bet, stats& stats) {
     handPlayer.cardCount = 0;
     handPlayer.value = 0;
     handPlayer.aceCount = 0;
@@ -207,7 +207,7 @@ void dealInitialCards(Deck& deck, Hand& handPlayer, Hand& handDealer, FastRNG& r
     drawCard(deck, handPlayer, true, stats);
 }
 
-Hand makeHand(const int64_t bet) {
+Hand makeHand(const int64_t& bet) {
     Hand h;
     h.cardCount = 0;
     h.value = 0;
@@ -275,7 +275,7 @@ bool isBlackjack(const Hand& hand) {
     return !hand.splitAces && hand.cardCount == 2 && hand.value == 21;
 }
 
-bool detectBlackjacks(const Deck& deck, const Hand& handPlayer, const Hand& handDealer, const int64_t bet, stats& stats) {
+bool detectBlackjacks(const Deck& deck, const Hand& handPlayer, const Hand& handDealer, const int64_t& bet, stats& stats) {
     const bool playerBJ = isBlackjack(handPlayer);
     const bool dealerBJ = isBlackjack(handDealer);
     const int hole = handDealer.cards[1];
@@ -312,11 +312,12 @@ constexpr auto P = Action::Split;
 constexpr auto S = Action::Stand;
 
 constexpr Action HARD[22][12] = {
-    {S,S,S,S,S,S,S,S,S,S,S,S}, /* 0 */
-    {S,S,S,S,S,S,S,S,S,S,S,S}, /* 1 */
-    {S,S,S,S,S,S,S,S,S,S,S,S}, /* 2 */
-    {S,S,S,S,S,S,S,S,S,S,S,S}, /* 3 */
-    {S,S,S,S,S,S,S,S,S,S,S,S}, /* 4 */
+    {S,S,S,S,S,S,S,S,S,S,S,S}, /* 0-4 Unused */
+    {S,S,S,S,S,S,S,S,S,S,S,S},
+    {S,S,S,S,S,S,S,S,S,S,S,S},
+    {S,S,S,S,S,S,S,S,S,S,S,S},
+    {S,S,S,S,S,S,S,S,S,S,S,S},
+
     {S,S,H,H,H,H,H,H,H,H,H,H}, /* 5 */
     {S,S,H,H,H,H,H,H,H,H,H,H}, /* 6 */
     {S,S,H,H,H,H,H,H,H,H,H,H}, /* 7 */
@@ -363,8 +364,9 @@ constexpr Action SOFT[22][12] = {
 };
 
 constexpr Action PAIR[12][12] = {
-    {S,S,S,S,S,S,S,S,S,S,S,S}, /* 0 */
-    {S,S,S,S,S,S,S,S,S,S,S,S}, /* 1 */
+    {S,S,S,S,S,S,S,S,S,S,S,S}, /* 0-1 Unused */
+    {S,S,S,S,S,S,S,S,S,S,S,S},
+
     {S,S,P,P,P,P,P,P,H,H,H,H}, /* 2,2 */
     {S,S,P,P,P,P,P,P,H,H,H,H}, /* 3,3 */
     {S,S,H,H,H,P,P,H,H,H,H,H}, /* 4,4 */
@@ -377,12 +379,11 @@ constexpr Action PAIR[12][12] = {
     {S,S,P,P,P,P,P,P,P,P,P,P}  /* A,A */
 };
 
-Action getAction(const int total, const int dealerUp, const bool isSoft, const bool isPair, const int pairRank)
+Action getAction(const int& total, const int& dealerUp, const bool& isSoft, const bool& isPair, const int& pairRank)
 {
-    if (isPair && pairRank >= 2 && pairRank <= 11) return PAIR[pairRank][dealerUp];
-    if (isSoft && total >= 13 && total <= 20) return SOFT[total][dealerUp];
-    if (total >= 5 && total <= 21) return HARD[total][dealerUp];
-    return Action::Stand;
+    if (isPair) return PAIR[pairRank][dealerUp];
+    if (isSoft) return SOFT[total][dealerUp];
+    return HARD[total][dealerUp];
 }
 // END HAND LOOKUP TABLES
 
@@ -488,7 +489,7 @@ void resolveHand(const Hand& player, const Hand& dealer, stats& stats) {
     }
 }
 
-void turnFull(Deck& deck, Hand& dealer, FastRNG& rng, const int64_t bet, stats& stats) {
+void turnFull(Deck& deck, Hand& dealer, FastRNG& rng, const int64_t& bet, stats& stats) {
     Hand hands[4];
     int handCount = 1;
     stats.bank -= bet; // upfront
@@ -515,7 +516,7 @@ void turnFull(Deck& deck, Hand& dealer, FastRNG& rng, const int64_t bet, stats& 
 }
 // END TURN ACTIONS
 
-void runSim(stats& outStats, const uint64_t seed) {
+void runSim(stats& outStats, const uint64_t& seed) {
     stats local;
     FastRNG rng(seed);
 
@@ -541,8 +542,8 @@ void runSim(stats& outStats, const uint64_t seed) {
 }
 
 int main() {
-    unsigned threads = 1;
-    if constexpr (!INTERACTIVE) threads = std::thread::hardware_concurrency();
+    unsigned threads = std::thread::hardware_concurrency();
+    if constexpr (INTERACTIVE) threads = 1;
 
     printGlobalVars(threads);
 
