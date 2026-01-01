@@ -98,6 +98,7 @@ void printGlobalVars(const uint& threads) {
     std::cout << "Number of independent players simulated: " << threads << std::endl;
     std::cout << "Number of hands per player: " << NUMBER_HANDS << std::endl;
     std::cout << "Player starting bank: " << PLAYER_STARTING_BANK << std::endl;
+    std::cout << "Default bet size: " << DEFAULT_BET << std::endl;
     std::cout << "Number of decks: " << NUMBER_DECKS << std::endl;
     std::cout << "Penetration before shuffle: " << PENETRATION * 100 << "%" << std::endl;
     std::cout << "Reshuffle at card " << static_cast<int>(PENETRATION * NUMBER_DECKS * 52) << std::endl;
@@ -105,6 +106,11 @@ void printGlobalVars(const uint& threads) {
         std::cout << "Dealer hits on soft 17" << std::endl;
     } else {
         std::cout << "Dealer stands on soft 17" << std::endl;
+    }
+    if constexpr (CARD_COUNTING) {
+        std::cout << "Card counting enabled" << std::endl;
+    } else {
+        std::cout << "Card counting disabled" << std::endl;
     }
 }
 
