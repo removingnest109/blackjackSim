@@ -15,6 +15,7 @@ bool isInteractive = false;
 bool cardCounting = false;
 bool verbose = false;
 bool debtAllowed = false;
+bool multiThread = false;
 
 static constexpr int8_t countTable[12] = {0,0,1,1,1,1,1,0,0,0,-1,-1};
 
@@ -98,13 +99,14 @@ struct FastRNG {
 
 // PRINT
 void printGlobalVars(const uint& threads) {
-    std::cout << "Number of independent players simulated: " << threads << std::endl;
-    std::cout << "Number of hands per player: " << numberHands << std::endl;
-    std::cout << "Player starting bank: " << startingBank << std::endl;
+    std::cout << "SETTINGS" << std::endl;
+    std::cout << "Multithreading: " << (multiThread ? "Enabled" : "Disabled") << std::endl;
+    if (multiThread) std::cout << "Number of threads: " << threads << std::endl;
+    std::cout << "Number of hands per thread: " << numberHands << std::endl;
+    std::cout << "Starting bank: " << startingBank << std::endl;
     std::cout << "Default bet size: " << defaultBetSize << std::endl;
     std::cout << "Number of decks: " << numberDecks << std::endl;
     std::cout << "Penetration before shuffle: " << penetrationBeforeShuffle * 100 << "%" << std::endl;
-    std::cout << "Reshuffle at card " << static_cast<int>(penetrationBeforeShuffle * static_cast<float>(numberDecks) * 52) << std::endl;
     if (dealerHitSoft17) {
         std::cout << "Dealer hits on soft 17" << std::endl;
     } else {
@@ -120,6 +122,7 @@ void printGlobalVars(const uint& threads) {
     } else {
         std::cout << "Negative bank disabled" << std::endl;
     }
+    std::cout << std::endl;
 }
 
 void printStats(const stats& stats, const uint& threads) {
@@ -128,6 +131,7 @@ void printStats(const stats& stats, const uint& threads) {
     const double evPerHand = static_cast<double>(profit) / static_cast<double>(stats.hands);
     const auto evPercent = static_cast<double>(profit) / static_cast<double>(stats.totalBet);
     if (verbose) {
+        std::cout << "RESULTS" << std::endl;
         std::cout << stats.hands << " Hands played" << std::endl;
         std::cout << stats.dealerWins << " Dealer Wins" << std::endl;
         std::cout << stats.dealerBlackjacks << " Dealer Blackjacks" << std::endl;
@@ -571,11 +575,12 @@ int main(const int argc, char** argv) {
         {"interactive", no_argument, nullptr, 'i'},
         {"card-counting", no_argument, nullptr, 'c'},
         {"debt", no_argument, nullptr, 'e'},
+        {"multithread", no_argument, nullptr, 'm'},
         {nullptr, 0, nullptr, 0 }
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "hvn:d:b:t:p:sice", long_opts, nullptr)) != -1) {
+    while ((opt = getopt_long(argc, argv, "hvn:d:b:t:p:sicem", long_opts, nullptr)) != -1) {
         switch (opt) {
             case 'h':
                 std::cout <<
@@ -590,7 +595,8 @@ int main(const int argc, char** argv) {
                     "  -s, --dealer-hit-soft-17       Dealer hits soft 17   (default false)\n"
                     "  -i, --interactive              Interactive mode      (default false)\n"
                     "  -c, --card-counting            Enable card counting  (default false)\n"
-                    "  -e, --debt                     Enable negative bank  (default false)\n";
+                    "  -e, --debt                     Enable negative bank  (default false)\n"
+                    "  -m, --multithread              Enable multithreading (default false)\n";
                 std::exit(0);
 
             case 'v':
@@ -633,13 +639,17 @@ int main(const int argc, char** argv) {
                 debtAllowed = true;
                 break;
 
+            case 'm':
+                multiThread = true;
+                break;
+
             default:
                 std::exit(1);
         }
     }
 
     unsigned threads = std::thread::hardware_concurrency();
-    if (isInteractive) threads = 1;
+    if (isInteractive || !multiThread) threads = 1;
 
     if (verbose) printGlobalVars(threads);
 
