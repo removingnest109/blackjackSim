@@ -3,15 +3,18 @@
 #include <iostream>
 #include <random>
 #include <thread>
+#include <getopt.h>
 
-#define NUMBER_HANDS 10000000
-#define NUMBER_DECKS 6
-#define PLAYER_STARTING_BANK 100000
-#define DEFAULT_BET 10
-#define PENETRATION 0.75
-#define DEALER_HIT_ON_SOFT_17 false
-#define INTERACTIVE false
-#define CARD_COUNTING true
+int numberHands = 10000000;
+int numberDecks = 6;
+int startingBank = 100000;
+int defaultBetSize = 10;
+float penetrationBeforeShuffle = 0.75;
+bool dealerHitSoft17 = false;
+bool isInteractive = false;
+bool cardCounting = false;
+bool verbose = false;
+bool debtAllowed = false;
 
 static constexpr int8_t countTable[12] = {0,0,1,1,1,1,1,0,0,0,-1,-1};
 
@@ -29,7 +32,7 @@ struct stats {
     int64_t cardsSinceShuffle = 0;
     int64_t runningCount = 0;
     double trueCount = 0;
-    int64_t bank = PLAYER_STARTING_BANK;
+    int64_t bank = startingBank;
     int64_t totalBet = 0;
 
     stats& operator+=(const stats& o) {
@@ -64,7 +67,7 @@ struct Hand {
 };
 
 struct Deck {
-    std::array<int, NUMBER_DECKS * 52> cards{};
+    std::vector<int> cards;
     int size = 0;
 };
 
@@ -96,40 +99,47 @@ struct FastRNG {
 // PRINT
 void printGlobalVars(const uint& threads) {
     std::cout << "Number of independent players simulated: " << threads << std::endl;
-    std::cout << "Number of hands per player: " << NUMBER_HANDS << std::endl;
-    std::cout << "Player starting bank: " << PLAYER_STARTING_BANK << std::endl;
-    std::cout << "Default bet size: " << DEFAULT_BET << std::endl;
-    std::cout << "Number of decks: " << NUMBER_DECKS << std::endl;
-    std::cout << "Penetration before shuffle: " << PENETRATION * 100 << "%" << std::endl;
-    std::cout << "Reshuffle at card " << static_cast<int>(PENETRATION * NUMBER_DECKS * 52) << std::endl;
-    if constexpr (DEALER_HIT_ON_SOFT_17) {
+    std::cout << "Number of hands per player: " << numberHands << std::endl;
+    std::cout << "Player starting bank: " << startingBank << std::endl;
+    std::cout << "Default bet size: " << defaultBetSize << std::endl;
+    std::cout << "Number of decks: " << numberDecks << std::endl;
+    std::cout << "Penetration before shuffle: " << penetrationBeforeShuffle * 100 << "%" << std::endl;
+    std::cout << "Reshuffle at card " << static_cast<int>(penetrationBeforeShuffle * static_cast<float>(numberDecks) * 52) << std::endl;
+    if (dealerHitSoft17) {
         std::cout << "Dealer hits on soft 17" << std::endl;
     } else {
         std::cout << "Dealer stands on soft 17" << std::endl;
     }
-    if constexpr (CARD_COUNTING) {
+    if (cardCounting) {
         std::cout << "Card counting enabled" << std::endl;
     } else {
         std::cout << "Card counting disabled" << std::endl;
+    }
+    if (debtAllowed) {
+        std::cout << "Negative bank enabled" << std::endl;
+    } else {
+        std::cout << "Negative bank disabled" << std::endl;
     }
 }
 
 void printStats(const stats& stats, const uint& threads) {
     const double winPercent = (static_cast<double>(stats.playerWins) / (static_cast<double>(stats.playerWins) + static_cast<double>(stats.dealerWins)));
-    const int64_t profit = stats.bank - (PLAYER_STARTING_BANK * threads);
+    const int64_t profit = stats.bank - (startingBank * threads);
     const double evPerHand = static_cast<double>(profit) / static_cast<double>(stats.hands);
-    const auto evPercent = static_cast<double>(static_cast<double>(profit) / static_cast<double>(stats.totalBet));
-    std::cout << stats.hands << " Hands played" << std::endl;
-    std::cout << stats.dealerWins << " Dealer Wins" << std::endl;
-    std::cout << stats.dealerBlackjacks << " Dealer Blackjacks" << std::endl;
-    std::cout << stats.draw << " Draw" << std::endl;
-    std::cout << stats.playerWins << " Player Wins" << std::endl;
-    std::cout << stats.playerBlackjacks << " Player Blackjacks" << std::endl;
-    std::cout << stats.shuffles << " Shuffles" << std::endl;
-    std::cout << stats.cardsDealt << " Cards dealt" << std::endl;
-    std::cout << stats.splits << " Splits" << std::endl;
-    std::cout << stats.doubles << " Doubles" << std::endl;
-    std::cout << "Average player win percentage excl draws: " << winPercent * 100 << "%" << std::endl;
+    const auto evPercent = static_cast<double>(profit) / static_cast<double>(stats.totalBet);
+    if (verbose) {
+        std::cout << stats.hands << " Hands played" << std::endl;
+        std::cout << stats.dealerWins << " Dealer Wins" << std::endl;
+        std::cout << stats.dealerBlackjacks << " Dealer Blackjacks" << std::endl;
+        std::cout << stats.draw << " Draw" << std::endl;
+        std::cout << stats.playerWins << " Player Wins" << std::endl;
+        std::cout << stats.playerBlackjacks << " Player Blackjacks" << std::endl;
+        std::cout << stats.shuffles << " Shuffles" << std::endl;
+        std::cout << stats.cardsDealt << " Cards dealt" << std::endl;
+        std::cout << stats.splits << " Splits" << std::endl;
+        std::cout << stats.doubles << " Doubles" << std::endl;
+        std::cout << "Average player win percentage excl draws: " << winPercent * 100 << "%" << std::endl;
+    }
     std::cout << "Average player bank: " << stats.bank / threads << std::endl;
     std::cout << "Average profit: " << profit / threads << std::endl;
     std::cout << "Average EV per hand: " << evPerHand << " $" << std::endl;
@@ -144,7 +154,7 @@ void drawCard(Deck& deck, Hand& hand, const bool& visible, stats& stats) {
     stats.cardsSinceShuffle++;
     stats.cardsDealt++;
 
-    if constexpr (CARD_COUNTING) {
+    if (cardCounting) {
         stats.runningCount += visible * countTable[card];
     }
 
@@ -161,8 +171,9 @@ void drawCard(Deck& deck, Hand& hand, const bool& visible, stats& stats) {
 
 void initDeck(Deck& deck) {
     deck.size = 0;
+    deck.cards.resize(numberDecks * 52);
 
-    for (int d = 0; d < NUMBER_DECKS; ++d) { // do once per deck
+    for (int d = 0; d < numberDecks; ++d) { // do once per deck
         for (int value = 2; value <= 10; ++value) { // for each value 2-10
             for (int count = 0; count < 4; ++count) { // 4x suits per card
                 deck.cards[deck.size++] = value;
@@ -199,11 +210,11 @@ void dealInitialCards(Deck& deck, Hand& handPlayer, Hand& handDealer, FastRNG& r
     handDealer.doubled = false;
     handDealer.splitAces = false;
 
-    if (stats.cardsSinceShuffle > (NUMBER_DECKS * 52) - 20) {
+    if (stats.cardsSinceShuffle > (numberDecks * 52) - 20) {
         shuffleDeck(deck, rng, stats);
     }
 
-    if (stats.cardsSinceShuffle > static_cast<int>(PENETRATION * NUMBER_DECKS * 52)) {
+    if (stats.cardsSinceShuffle > static_cast<int>(penetrationBeforeShuffle * static_cast<float>(numberDecks) * 52)) {
         shuffleDeck(deck, rng, stats);
     }
 
@@ -289,7 +300,7 @@ bool detectBlackjacks(const Deck& deck, const Hand& handPlayer, const Hand& hand
     if (playerBJ && dealerBJ) {
         stats.runningCount += countTable[hole];
         stats.draw++;
-        if constexpr (INTERACTIVE) std::cout << "Push" << std::endl;
+        if (isInteractive) std::cout << "Push" << std::endl;
         stats.bank += bet; // return original bet
         return true;
     }
@@ -297,13 +308,13 @@ bool detectBlackjacks(const Deck& deck, const Hand& handPlayer, const Hand& hand
         stats.runningCount += countTable[hole];
         stats.dealerWins++;
         stats.dealerBlackjacks++;
-        if constexpr (INTERACTIVE) std::cout << "Dealer Blackjack" << std::endl;
+        if (isInteractive) std::cout << "Dealer Blackjack" << std::endl;
         return true;
     }
     if (playerBJ) {
         stats.playerWins++;
         stats.playerBlackjacks++;
-        if constexpr (INTERACTIVE) std::cout << "Player Blackjack" << std::endl;
+        if (isInteractive) std::cout << "Player Blackjack" << std::endl;
         stats.bank += static_cast<int64_t>(static_cast<double>(bet) * 2.5); // original bet + 1.5x
         return true;
     }
@@ -459,13 +470,13 @@ void interactiveHand(Deck& deck, Hand hands[], int& handCount, const Hand& deale
 }
 
 void playDealerHand(Deck& deck, Hand& hand, stats& stats) {
-    while (hand.value < 17 || (DEALER_HIT_ON_SOFT_17 && hand.value == 17 && hand.aceCount > 0)) {
+    while (hand.value < 17 || (dealerHitSoft17 && hand.value == 17 && hand.aceCount > 0)) {
         drawCard(deck, hand, true, stats);
     }
 }
 
 void resolveHand(const Hand& player, const Hand& dealer, stats& stats) {
-    if constexpr (INTERACTIVE) {
+    if (isInteractive) {
         std::cout << "Player Hand: ";
         for (int i = 0; i < player.cardCount; ++i) std::cout << player.cards[i] << " ";
         std::cout << " -> " << player.value << std::endl;
@@ -476,21 +487,21 @@ void resolveHand(const Hand& player, const Hand& dealer, stats& stats) {
 
     if (player.value > 21) {
         stats.dealerWins++;
-        if constexpr (INTERACTIVE) std::cout << "Player Bust" << std::endl;
+        if (isInteractive) std::cout << "Player Bust" << std::endl;
     } else if (dealer.value > 21) {
         stats.playerWins++;
-        if constexpr (INTERACTIVE) std::cout << "Dealer Bust" << std::endl;
+        if (isInteractive) std::cout << "Dealer Bust" << std::endl;
         stats.bank += player.bet * 2;
     } else if (player.value > dealer.value) {
         stats.playerWins++;
-        if constexpr (INTERACTIVE) std::cout << "Player Win" << std::endl;
+        if (isInteractive) std::cout << "Player Win" << std::endl;
         stats.bank += player.bet * 2;
     } else if (player.value < dealer.value) {
         stats.dealerWins++;
-        if constexpr (INTERACTIVE) std::cout << "Dealer Win" << std::endl;
+        if (isInteractive) std::cout << "Dealer Win" << std::endl;
     } else {
         stats.draw++;
-        if constexpr (INTERACTIVE) std::cout << "Push" << std::endl;
+        if (isInteractive) std::cout << "Push" << std::endl;
         stats.bank += player.bet;
     }
 }
@@ -507,7 +518,7 @@ void turnFull(Deck& deck, Hand& dealer, FastRNG& rng, const int64_t& bet, stats&
 
     if (detectBlackjacks(deck, hands[0], dealer, bet, stats)) return;
 
-    if constexpr (INTERACTIVE) {
+    if (isInteractive) {
         std::cout << "Round " << stats.hands << std::endl;
         interactiveHand(deck, hands, handCount, dealer, stats);
     } else {
@@ -516,7 +527,7 @@ void turnFull(Deck& deck, Hand& dealer, FastRNG& rng, const int64_t& bet, stats&
     playDealerHand(deck, dealer, stats);
 
     for (int i = 0; i < handCount; ++i) {
-        if constexpr (INTERACTIVE) std::cout << "Hand " << (i + 1) << std::endl;
+        if (isInteractive) std::cout << "Hand " << (i + 1) << std::endl;
         resolveHand(hands[i], dealer, stats);
     }
 }
@@ -531,32 +542,112 @@ void runSim(stats& outStats, const uint64_t& seed) {
 
     Hand dealer;
 
-    for (uint64_t i = 0; i < NUMBER_HANDS; ++i) {
-        if constexpr (CARD_COUNTING) getTrueCount(deck, local);
-        int64_t bet = CARD_COUNTING ? betFromTrueCount(local) * DEFAULT_BET : DEFAULT_BET;
-        if constexpr (INTERACTIVE) {
-            if constexpr (CARD_COUNTING) std::cout << "count (true count): " << local.runningCount << " (" << std::setprecision (2) << std::fixed << local.trueCount << ")" << std::endl;
+    for (uint64_t i = 0; i < numberHands; ++i) {
+        if (cardCounting) getTrueCount(deck, local);
+        int64_t bet = cardCounting ? betFromTrueCount(local) * defaultBetSize : defaultBetSize;
+        if (isInteractive) {
+            if (cardCounting) std::cout << "count (true count): " << local.runningCount << " (" << std::setprecision (2) << std::fixed << local.trueCount << ")" << std::endl;
             std::cout << "bank: $" << local.bank << std::endl;
             std::cout << "enter bet: $";
             std::cin >> bet;
         }
-        if (local.bank < bet) break;
+        if (local.bank < bet && !debtAllowed) break;
         turnFull(deck, dealer, rng, bet, local);
     }
 
     outStats = local;
 }
 
-int main() {
-    unsigned threads = std::thread::hardware_concurrency();
-    if constexpr (INTERACTIVE) threads = 1;
+int main(const int argc, char** argv) {
+    const option long_opts[] = {
+        {"help", no_argument, nullptr, 'h'},
+        {"verbose", no_argument, nullptr, 'v'},
+        {"hands", required_argument, nullptr, 'n'},
+        {"decks", required_argument, nullptr, 'd'},
+        {"bank", required_argument, nullptr, 'b'},
+        {"bet", required_argument, nullptr, 't'},
+        {"penetration", required_argument, nullptr, 'p'},
+        {"dealer-hit-soft-17", no_argument, nullptr, 's'},
+        {"interactive", no_argument, nullptr, 'i'},
+        {"card-counting", no_argument, nullptr, 'c'},
+        {"debt", no_argument, nullptr, 'e'},
+        {nullptr, 0, nullptr, 0 }
+    };
 
-    printGlobalVars(threads);
+    int opt;
+    while ((opt = getopt_long(argc, argv, "hvn:d:b:t:p:sice", long_opts, nullptr)) != -1) {
+        switch (opt) {
+            case 'h':
+                std::cout <<
+                    "Options:\n"
+                    "  -h, --help                     Show help\n"
+                    "  -v, --verbose                  Enable verbose mode\n"
+                    "  -n, --hands <num>              Number of hands       (default 10000000)\n"
+                    "  -d, --decks <num>              Number of decks       (default 6)\n"
+                    "  -b, --bank <amount>            Starting bank         (default 100000)\n"
+                    "  -t, --bet <amount>             Default bet size      (default 10)\n"
+                    "  -p, --penetration <0.0-1.0>    Shuffle penetration   (default 0.75)\n"
+                    "  -s, --dealer-hit-soft-17       Dealer hits soft 17   (default false)\n"
+                    "  -i, --interactive              Interactive mode      (default false)\n"
+                    "  -c, --card-counting            Enable card counting  (default false)\n"
+                    "  -e, --debt                     Enable negative bank  (default false)\n";
+                std::exit(0);
+
+            case 'v':
+                verbose = true;
+                break;
+
+            case 'n':
+                numberHands = std::stoi(optarg);
+                break;
+
+            case 'd':
+                numberDecks = std::stoi(optarg);
+                break;
+
+            case 'b':
+                startingBank = std::stoi(optarg);
+                break;
+
+            case 't':
+                defaultBetSize = std::stoi(optarg);
+                break;
+
+            case 'p':
+                penetrationBeforeShuffle = std::stof(optarg);
+                break;
+
+            case 's':
+                dealerHitSoft17 = true;
+                break;
+
+            case 'i':
+                isInteractive = true;
+                break;
+
+            case 'c':
+                cardCounting = true;
+                break;
+
+            case 'e':
+                debtAllowed = true;
+                break;
+
+            default:
+                std::exit(1);
+        }
+    }
+
+    unsigned threads = std::thread::hardware_concurrency();
+    if (isInteractive) threads = 1;
+
+    if (verbose) printGlobalVars(threads);
 
     std::vector<std::thread> workers;
     std::vector<stats> results(threads);
     std::random_device dev;
 
+    workers.reserve(threads);
     for (unsigned i = 0; i < threads; ++i) {
         workers.emplace_back(
             runSim,
@@ -567,7 +658,8 @@ int main() {
 
     for (auto& t : workers) t.join();
 
-    stats global;
+    stats global{};
+    global.bank = 0;
     for (const auto& s : results) {
         global += s;
     }
