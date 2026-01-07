@@ -98,7 +98,7 @@ struct FastRNG {
 // END FAST RNG
 
 // PRINT
-void printGlobalVars(const uint& threads) {
+void printGlobalVars(const uint32_t& threads) {
     std::cout << "SETTINGS" << std::endl;
     std::cout << "Multithreading: " << (multiThread ? "Enabled" : "Disabled") << std::endl;
     if (multiThread) std::cout << "Number of threads: " << threads << std::endl;
@@ -125,7 +125,7 @@ void printGlobalVars(const uint& threads) {
     std::cout << std::endl;
 }
 
-void printStats(const stats& stats, const uint& threads) {
+void printStats(const stats& stats, const uint32_t& threads) {
     const double winPercent = (static_cast<double>(stats.playerWins) / (static_cast<double>(stats.playerWins) + static_cast<double>(stats.dealerWins)));
     const int64_t profit = stats.bank - (startingBank * threads);
     const double evPerHand = static_cast<double>(profit) / static_cast<double>(stats.hands);
@@ -648,7 +648,7 @@ int main(const int argc, char** argv) {
         }
     }
 
-    unsigned threads = std::thread::hardware_concurrency();
+    uint32_t threads = std::thread::hardware_concurrency();
     if (isInteractive || !multiThread) threads = 1;
 
     if (verbose) printGlobalVars(threads);
