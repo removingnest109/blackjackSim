@@ -17,8 +17,7 @@ bool verbose = false;
 bool debtAllowed = false;
 bool multiThread = false;
 
-static constexpr int8_t countTable[12] = {0,0,1,1,1,1,1,0,0,0,-1,-1};
-
+// PRINT
 struct stats {
     int64_t hands = 0;
     int64_t playerWins = 0;
@@ -53,51 +52,6 @@ struct stats {
     }
 };
 
-struct Hand {
-    std::array<int, 22> cards{};
-    int cardCount = 0;
-    int value = 0;
-    int aceCount = 0;
-    int64_t bet{};
-    bool doubled = false;
-    bool splitAces = false;
-
-    [[nodiscard]] bool isSoft() const {
-        return value <= 21 && aceCount > 0;
-    }
-};
-
-struct Deck {
-    std::vector<int> cards;
-    int size = 0;
-};
-
-enum class Action {
-    Hit,
-    Double,
-    Split,
-    Stand
-};
-
-// FAST RNG
-struct FastRNG {
-    uint64_t state;
-    explicit FastRNG(const uint64_t& seed) : state(seed) {
-        if (state == 0) state = 0xACE1;
-    }
-    uint64_t operator()() {
-        state ^= state << 13;
-        state ^= state >> 7;
-        state ^= state << 17;
-        return state;
-    }
-    static constexpr uint64_t min() { return 0; }
-    static constexpr uint64_t max() { return UINT64_MAX; }
-    using result_type = uint64_t;
-};
-// END FAST RNG
-
-// PRINT
 void printGlobalVars(const uint32_t& threads) {
     std::cout << "SETTINGS" << std::endl;
     std::cout << "Multithreading: " << (multiThread ? "Enabled" : "Disabled") << std::endl;
@@ -140,6 +94,43 @@ void printStats(const stats& stats, const uint32_t& threads) {
 // END PRINT
 
 // CARD ACTIONS
+struct Hand {
+    std::array<int, 22> cards{};
+    int cardCount = 0;
+    int value = 0;
+    int aceCount = 0;
+    int64_t bet{};
+    bool doubled = false;
+    bool splitAces = false;
+
+    [[nodiscard]] bool isSoft() const {
+        return value <= 21 && aceCount > 0;
+    }
+};
+
+struct Deck {
+    std::vector<int> cards;
+    int size = 0;
+};
+
+struct FastRNG {
+    uint64_t state;
+    explicit FastRNG(const uint64_t& seed) : state(seed) {
+        if (state == 0) state = 0xACE1;
+    }
+    uint64_t operator()() {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        return state;
+    }
+    static constexpr uint64_t min() { return 0; }
+    static constexpr uint64_t max() { return UINT64_MAX; }
+    using result_type = uint64_t;
+};
+
+static constexpr int8_t countTable[12] = {0,0,1,1,1,1,1,0,0,0,-1,-1};
+
 void drawCard(Deck& deck, Hand& hand, const bool& visible, stats& stats) {
     const int card = deck.cards[deck.size - 1];
 
@@ -315,6 +306,13 @@ bool detectBlackjacks(const Deck& deck, const Hand& handPlayer, const Hand& hand
 // END HELPERS
 
 // HAND LOOKUP TABLES
+enum class Action {
+    Hit,
+    Double,
+    Split,
+    Stand
+};
+
 constexpr auto H = Action::Hit;
 constexpr auto D = Action::Double;
 constexpr auto P = Action::Split;
