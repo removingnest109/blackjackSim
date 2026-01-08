@@ -107,30 +107,18 @@ void printGlobalVars(const uint32_t& threads) {
     std::cout << "Default bet size: " << defaultBetSize << std::endl;
     std::cout << "Number of decks: " << numberDecks << std::endl;
     std::cout << "Penetration before shuffle: " << penetrationBeforeShuffle * 100 << "%" << std::endl;
-    if (dealerHitSoft17) {
-        std::cout << "Dealer hits on soft 17" << std::endl;
-    } else {
-        std::cout << "Dealer stands on soft 17" << std::endl;
-    }
-    if (cardCounting) {
-        std::cout << "Card counting enabled" << std::endl;
-    } else {
-        std::cout << "Card counting disabled" << std::endl;
-    }
-    if (debtAllowed) {
-        std::cout << "Negative bank enabled" << std::endl;
-    } else {
-        std::cout << "Negative bank disabled" << std::endl;
-    }
+    std::cout << "Dealer " << (dealerHitSoft17 ? "hits" : "stands") << " on soft 17" << std::endl;
+    std::cout << "Card counting: " << (cardCounting ? "Enabled" : "Disabled") << std::endl;
+    std::cout << "Negative bank: " << (debtAllowed ? "Enabled" : "Disabled") << std::endl;
     std::cout << std::endl;
 }
 
 void printStats(const stats& stats, const uint32_t& threads) {
-    const double winPercent = (static_cast<double>(stats.playerWins) / (static_cast<double>(stats.playerWins) + static_cast<double>(stats.dealerWins)));
     const int64_t profit = stats.bank - (startingBank * threads);
-    const double evPerHand = static_cast<double>(profit) / static_cast<double>(stats.hands);
     const auto evPercent = static_cast<double>(profit) / static_cast<double>(stats.totalBet);
     if (verbose) {
+        const double evPerHand = static_cast<double>(profit) / static_cast<double>(stats.hands);
+        const double winPercent = static_cast<double>(stats.playerWins) / (static_cast<double>(stats.playerWins) + static_cast<double>(stats.dealerWins));
         std::cout << "RESULTS" << std::endl;
         std::cout << stats.hands << " Hands played" << std::endl;
         std::cout << stats.dealerWins << " Dealer Wins" << std::endl;
@@ -142,11 +130,11 @@ void printStats(const stats& stats, const uint32_t& threads) {
         std::cout << stats.cardsDealt << " Cards dealt" << std::endl;
         std::cout << stats.splits << " Splits" << std::endl;
         std::cout << stats.doubles << " Doubles" << std::endl;
-        std::cout << "Average player win percentage excl draws: " << winPercent * 100 << "%" << std::endl;
+        std::cout << "Average player win percentage: " << winPercent * 100 << "%" << std::endl;
+        std::cout << "Average player bank: " << stats.bank / threads << std::endl;
+        std::cout << "Average profit: " << profit / threads << std::endl;
+        std::cout << "Average EV per hand: " << evPerHand << " $" << std::endl;
     }
-    std::cout << "Average player bank: " << stats.bank / threads << std::endl;
-    std::cout << "Average profit: " << profit / threads << std::endl;
-    std::cout << "Average EV per hand: " << evPerHand << " $" << std::endl;
     std::cout << "Average EV percentage: " << evPercent * 100 << "%" << std::endl;
 }
 // END PRINT
