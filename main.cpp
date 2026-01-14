@@ -634,8 +634,8 @@ int main(const int argc, char** argv) {
         }
     }
 
-    uint32_t threads = std::thread::hardware_concurrency();
-    if (isInteractive || !multiThread) threads = 1;
+    uint32_t threads = 1;
+    if (!isInteractive && multiThread) threads = std::thread::hardware_concurrency();
 
     if (verbose) printGlobalVars(threads);
 
