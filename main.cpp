@@ -1,16 +1,19 @@
 #include <array>
-#include <getopt.h>
 #include <iomanip>
 #include <iostream>
 #include <random>
 #include <thread>
+#include <vector>
+#include <algorithm>
+#include <cstdint>
+#include <string>
 
 struct Config {
   int numberHands = 10000000;
   int numberDecks = 6;
   int startingBank = 100000;
   int defaultBetSize = 10;
-  uint threads = 1;
+  unsigned int threads = 1;
   float penetrationBeforeShuffle = 0.75;
   bool dealerHitSoft17 = false;
   bool isInteractive = false;
@@ -85,7 +88,7 @@ void printGlobalVars() {
 }
 
 void printStats(const Stats &stats) {
-  const int64_t profit = stats.bank - (config.startingBank * config.threads);
+  const int64_t profit = stats.bank - (config.startingBank * static_cast<int64_t>(config.threads));
   const auto evPercent = divide(profit, stats.totalBet);
   if (config.verbose) {
     const double evPerHand = divide(profit, stats.hands);
@@ -103,9 +106,9 @@ void printStats(const Stats &stats) {
     std::cout << stats.doubles << " Doubles" << std::endl;
     std::cout << "Average player win percentage: " << winPercent * 100 << "%"
               << std::endl;
-    std::cout << "Average player bank: " << divide(stats.bank, config.threads)
+    std::cout << "Average player bank: " << divide(stats.bank, static_cast<int64_t>(config.threads))
               << std::endl;
-    std::cout << "Average profit: " << divide(profit, config.threads)
+    std::cout << "Average profit: " << divide(profit, static_cast<int64_t>(config.threads))
               << std::endl;
     std::cout << "Average EV per hand: " << evPerHand << " $" << std::endl;
   }
@@ -126,29 +129,12 @@ struct Hand {
   bool doubled = false;
   bool splitAces = false;
 
-  [[nodiscard]] bool isSoft() const { return value <= 21 && aceCount > 0; }
+  bool isSoft() const { return value <= 21 && aceCount > 0; }
 };
 
 struct Deck {
   std::vector<int> cards;
   int size = 0;
-};
-
-struct FastRNG {
-  uint64_t state;
-  explicit FastRNG(const uint64_t &seed) : state(seed) {
-    if (state == 0)
-      state = 0xACE1;
-  }
-  uint64_t operator()() {
-    state ^= state << 13;
-    state ^= state >> 7;
-    state ^= state << 17;
-    return state;
-  }
-  static constexpr uint64_t min() { return 0; }
-  static constexpr uint64_t max() { return UINT64_MAX; }
-  using result_type = uint64_t;
 };
 
 static constexpr int8_t countTable[12] = {0, 0, 1, 1, 1, 1, 1, 0, 0, 0, -1, -1};
@@ -195,7 +181,7 @@ void initDeck(Deck &deck) {
   }
 }
 
-void shuffleDeck(Deck &deck, FastRNG &rng, Stats &stats) {
+void shuffleDeck(Deck &deck, std::mt19937 &rng, Stats &stats) {
   initDeck(deck);
   std::shuffle(deck.cards.begin(), deck.cards.begin() + deck.size, rng);
   stats.shuffles++;
@@ -213,7 +199,7 @@ void resetHand(Hand &hand, const int64_t &bet = 0) {
   hand.splitAces = false;
 }
 
-void shuffleIfNeeded(Deck &deck, FastRNG &rng, Stats &stats) {
+void shuffleIfNeeded(Deck &deck, std::mt19937 &rng, Stats &stats) {
   const int maxCardsBeforeShuffle = config.numberDecks * 52;
   const int penetrationLimit =
       static_cast<int>(config.penetrationBeforeShuffle *
@@ -226,7 +212,7 @@ void shuffleIfNeeded(Deck &deck, FastRNG &rng, Stats &stats) {
 }
 
 void dealInitialCards(Deck &deck, Hand &handPlayer, Hand &handDealer,
-                      FastRNG &rng, const int64_t &bet, Stats &stats) {
+                      std::mt19937 &rng, const int64_t &bet, Stats &stats) {
   resetHand(handPlayer, bet);
   resetHand(handDealer);
 
@@ -558,7 +544,7 @@ void resolveHand(const Hand &player, const Hand &dealer, Stats &stats) {
   }
 }
 
-void turnFull(Deck &deck, Hand &dealer, FastRNG &rng, const int64_t &bet,
+void turnFull(Deck &deck, Hand &dealer, std::mt19937 &rng, const int64_t &bet,
               Stats &stats) {
   Hand hands[4];
   int handCount = 1;
@@ -580,7 +566,7 @@ void turnFull(Deck &deck, Hand &dealer, FastRNG &rng, const int64_t &bet,
   }
 }
 
-void playHand(Deck &deck, Hand &dealer, FastRNG &rng, Stats &local) {
+void playHand(Deck &deck, Hand &dealer, std::mt19937 &rng, Stats &local) {
   if (config.cardCounting)
     getTrueCount(deck, local);
   int64_t bet = config.cardCounting
@@ -603,7 +589,7 @@ void playHand(Deck &deck, Hand &dealer, FastRNG &rng, Stats &local) {
 
 Stats runSimThread(const uint64_t &seed) {
   Stats local;
-  FastRNG rng(seed);
+  std::mt19937 rng(seed);
 
   Deck deck;
   shuffleDeck(deck, rng, local);
@@ -614,14 +600,10 @@ Stats runSimThread(const uint64_t &seed) {
     playHand(deck, dealer, rng, local);
   }
 
-  printStats(local);
-
   return local;
 }
 
 Stats runSim() {
-  if (!config.isInteractive && config.multiThread)
-    config.threads = std::thread::hardware_concurrency();
   std::vector<std::thread> workers;
   std::vector<Stats> results(config.threads);
   std::random_device dev;
@@ -643,103 +625,119 @@ Stats runSim() {
   return global;
 }
 
-void getArgs(const int argc, char **argv) {
-  const option long_opts[] = {{"help", no_argument, nullptr, 'h'},
-                              {"verbose", no_argument, nullptr, 'v'},
-                              {"hands", required_argument, nullptr, 'n'},
-                              {"decks", required_argument, nullptr, 'd'},
-                              {"bank", required_argument, nullptr, 'b'},
-                              {"bet", required_argument, nullptr, 't'},
-                              {"penetration", required_argument, nullptr, 'p'},
-                              {"dealer-hit-soft-17", no_argument, nullptr, 's'},
-                              {"interactive", no_argument, nullptr, 'i'},
-                              {"card-counting", no_argument, nullptr, 'c'},
-                              {"debt", no_argument, nullptr, 'e'},
-                              {"multithread", no_argument, nullptr, 'm'},
-                              {nullptr, 0, nullptr, 0}};
+void printHelp() {
+  std::cout << "Options:\n"
+               "  -h, --help                     Show help\n"
+               "  -v, --verbose                  Enable verbose mode\n"
+               "  -n, --hands <num>              Number of hands (default 10000000)\n"
+               "  -d, --decks <num>              Number of decks (default 6)\n"
+               "  -b, --bank <amount>            Starting bank (default 100000)\n"
+               "  -t, --bet <amount>             Default bet size (default 10)\n"
+               "  -p, --penetration <0.0-1.0>    Shuffle penetration (default 0.75)\n"
+               "  -s, --dealer-hit-soft-17       Dealer hits soft 17\n"
+               "  -i, --interactive              Interactive mode\n"
+               "  -c, --card-counting            Enable card counting\n"
+               "  -e, --debt                     Enable negative bank\n"
+               "  -m, --multithread              Enable multithreading\n";
+}
 
-  int opt;
-  while ((opt = getopt_long(argc, argv, "hvn:d:b:t:p:sicem", long_opts,
-                            nullptr)) != -1) {
-    switch (opt) {
-    case 'h':
-      std::cout << "Options:\n"
-                   "  -h, --help                     Show help\n"
-                   "  -v, --verbose                  Enable verbose mode\n"
-                   "  -n, --hands <num>              Number of hands       "
-                   "(default 10000000)\n"
-                   "  -d, --decks <num>              Number of decks       "
-                   "(default 6)\n"
-                   "  -b, --bank <amount>            Starting bank         "
-                   "(default 100000)\n"
-                   "  -t, --bet <amount>             Default bet size      "
-                   "(default 10)\n"
-                   "  -p, --penetration <0.0-1.0>    Shuffle penetration   "
-                   "(default 0.75)\n"
-                   "  -s, --dealer-hit-soft-17       Dealer hits soft 17   "
-                   "(default false)\n"
-                   "  -i, --interactive              Interactive mode      "
-                   "(default false)\n"
-                   "  -c, --card-counting            Enable card counting  "
-                   "(default false)\n"
-                   "  -e, --debt                     Enable negative bank  "
-                   "(default false)\n"
-                   "  -m, --multithread              Enable multithreading "
-                   "(default false)\n";
-      std::exit(0);
+bool requiresValue(const std::string& arg) {
+  return arg == "-n" || arg == "--hands" ||
+         arg == "-d" || arg == "--decks" ||
+         arg == "-b" || arg == "--bank" ||
+         arg == "-t" || arg == "--bet" ||
+         arg == "-p" || arg == "--penetration";
+}
 
-    case 'v':
-      config.verbose = true;
-      break;
+void getArgs(const int argc, char** argv) {
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
 
-    case 'n':
-      config.numberHands = std::stoi(optarg);
-      break;
+        // ---- long flags ----
+        if (arg.rfind("--", 0) == 0) { // starts with --
+            if (arg == "--help") { printHelp(); std::exit(0); }
+            else if (arg == "--verbose") config.verbose = true;
+            else if (arg == "--dealer-hit-soft-17") config.dealerHitSoft17 = true;
+            else if (arg == "--interactive") config.isInteractive = true;
+            else if (arg == "--card-counting") config.cardCounting = true;
+            else if (arg == "--debt") config.debtAllowed = true;
+            else if (arg == "--multithread") config.multiThread = true;
 
-    case 'd':
-      config.numberDecks = std::stoi(optarg);
-      break;
+            else if (arg == "--hands" || arg == "--decks" || arg == "--bank" ||
+                     arg == "--bet" || arg == "--penetration") {
+                if (i + 1 >= argc) { std::cerr << "Missing value for " << arg << "\n"; std::exit(1); }
+                std::string value = argv[++i];
+                try {
+                    if (arg == "--hands") config.numberHands = std::stoi(value);
+                    else if (arg == "--decks") config.numberDecks = std::stoi(value);
+                    else if (arg == "--bank") config.startingBank = std::stoi(value);
+                    else if (arg == "--bet") config.defaultBetSize = std::stoi(value);
+                    else if (arg == "--penetration") config.penetrationBeforeShuffle = std::stof(value);
+                } catch (...) { std::cerr << "Invalid value for " << arg << "\n"; std::exit(1); }
+            } else {
+                std::cerr << "Unknown argument: " << arg << "\n"; std::exit(1);
+            }
+        }
 
-    case 'b':
-      config.startingBank = std::stoi(optarg);
-      break;
+        // ---- short flags ----
+        else if (arg[0] == '-' && arg.size() > 1) {
+            for (size_t j = 1; j < arg.size(); ++j) {
+              switch (const char flag = arg[j]) {
+                    case 'h': printHelp(); std::exit(0);
+                    case 'v': config.verbose = true; break;
+                    case 's': config.dealerHitSoft17 = true; break;
+                    case 'i': config.isInteractive = true; break;
+                    case 'c': config.cardCounting = true; break;
+                    case 'e': config.debtAllowed = true; break;
+                    case 'm': config.multiThread = true; break;
 
-    case 't':
-      config.defaultBetSize = std::stoi(optarg);
-      break;
+                    case 'n': case 'd': case 'b': case 't': case 'p': {
+                        if (j + 1 != arg.size()) {
+                            std::cerr << "Option -" << flag << " requires a separate value\n";
+                            std::exit(1);
+                        }
+                        if (i + 1 >= argc) {
+                            std::cerr << "Missing value for -" << flag << "\n";
+                            std::exit(1);
+                        }
+                        std::string value = argv[++i];
+                        try {
+                            if (flag == 'n') config.numberHands = std::stoi(value);
+                            else if (flag == 'd') config.numberDecks = std::stoi(value);
+                            else if (flag == 'b') config.startingBank = std::stoi(value);
+                            else if (flag == 't') config.defaultBetSize = std::stoi(value);
+                            else if (flag == 'p') config.penetrationBeforeShuffle = std::stof(value);
+                        } catch (...) {
+                            std::cerr << "Invalid value for -" << flag << "\n";
+                            std::exit(1);
+                        }
+                        break;
+                    }
 
-    case 'p':
-      config.penetrationBeforeShuffle = std::stof(optarg);
-      break;
+                    default:
+                        std::cerr << "Unknown option: -" << flag << "\n";
+                        std::exit(1);
+                }
+            }
+        }
 
-    case 's':
-      config.dealerHitSoft17 = true;
-      break;
-
-    case 'i':
-      config.isInteractive = true;
-      break;
-
-    case 'c':
-      config.cardCounting = true;
-      break;
-
-    case 'e':
-      config.debtAllowed = true;
-      break;
-
-    case 'm':
-      config.multiThread = true;
-      break;
-
-    default:
-      std::exit(1);
+        else {
+            std::cerr << "Unknown argument: " << arg << "\n";
+            std::exit(1);
+        }
     }
-  }
+}
+
+void setThreads() {
+  if (!config.isInteractive && config.multiThread)
+    config.threads = std::thread::hardware_concurrency();
+  if (config.threads == 0)
+    config.threads = 1;
 }
 
 int main(const int argc, char **argv) {
   getArgs(argc, argv);
+  setThreads();
   if (config.verbose)
     printGlobalVars();
   printStats(runSim());
