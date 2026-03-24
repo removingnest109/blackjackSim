@@ -599,7 +599,7 @@ Stats runSimThread(const uint64_t &seed) {
 
   Hand dealer;
 
-  for (uint64_t i = 0; i < config.numberHands; ++i) {
+  for (int i = 0; i < config.numberHands; ++i) {
     playHand(deck, dealer, rng, local);
   }
 
@@ -612,7 +612,7 @@ Stats runSim() {
   std::random_device dev;
 
   workers.reserve(config.threads);
-  for (unsigned i = 0; i < config.threads; ++i) {
+  for (unsigned int i = 0; i < config.threads; ++i) {
     workers.emplace_back([&, i] { results[i] = runSimThread(dev() + i); });
   }
 
