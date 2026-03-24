@@ -112,7 +112,7 @@ void printStats(const Stats &stats) {
   std::cout << "Average EV percentage: " << evPercent * 100 << "%" << std::endl;
 }
 
-void announceIfInteractive (const std::string& message) {
+void announceIfInteractive(const std::string &message) {
   if (config.isInteractive)
     std::cout << message << std::endl;
 }
@@ -307,9 +307,8 @@ bool isBlackjack(const Hand &hand) {
   return !hand.splitAces && hand.cardCount == 2 && hand.value == 21;
 }
 
-bool detectBlackjacks(const Hand &handPlayer,
-                      const Hand &handDealer, const int64_t &bet,
-                      Stats &stats) {
+bool detectBlackjacks(const Hand &handPlayer, const Hand &handDealer,
+                      const int64_t &bet, Stats &stats) {
   const bool playerBJ = isBlackjack(handPlayer);
   const bool dealerBJ = isBlackjack(handDealer);
   const int hole = handDealer.cards[1];
@@ -416,7 +415,7 @@ Action getAction(const int &total, const int &dealerUp, const bool &isSoft,
 }
 
 void simulatePlayerHands(Deck &deck, Hand hands[], int &handCount,
-                     const Hand &dealer, Stats &stats) {
+                         const Hand &dealer, Stats &stats) {
   for (int i = 0; i < handCount; ++i) {
     bool done = false;
     while (!done) {
@@ -500,7 +499,7 @@ void interactiveHand(Deck &deck, Hand hands[], int &handCount,
   }
 }
 
-void playPlayerHands (Deck &deck, Hand hands[], int &handCount,
+void playPlayerHands(Deck &deck, Hand hands[], int &handCount,
                      const Hand &dealer, Stats &stats) {
   if (config.isInteractive) {
     std::cout << "Round " << stats.hands << std::endl;
@@ -532,8 +531,10 @@ void resolveHand(const Hand &player, const Hand &dealer, Stats &stats) {
 
   const bool playerBust = player.value > 21;
   const bool dealerBust = dealer.value > 21;
-  const bool playerWins = !playerBust && (dealerBust || player.value > dealer.value);
-  const bool dealerWins = !dealerBust && !playerWins && player.value < dealer.value;
+  const bool playerWins =
+      !playerBust && (dealerBust || player.value > dealer.value);
+  const bool dealerWins =
+      !dealerBust && !playerWins && player.value < dealer.value;
   const bool push = !playerBust && !dealerBust && player.value == dealer.value;
 
   if (playerBust) {
@@ -588,14 +589,15 @@ void playHand(Deck &deck, Hand &dealer, FastRNG &rng, Stats &local) {
   if (config.isInteractive) {
     if (config.cardCounting)
       std::cout << "count (true count): " << local.runningCount << " ("
-                << std::setprecision(2) << std::fixed << local.trueCount
-                << ")" << std::endl;
+                << std::setprecision(2) << std::fixed << local.trueCount << ")"
+                << std::endl;
     std::cout << "bank: $" << local.bank << std::endl;
     std::cout << "enter bet: $";
     std::cin >> bet;
   }
   if (local.bank < bet && !config.debtAllowed)
-    return;;
+    return;
+  ;
   turnFull(deck, dealer, rng, bet, local);
 }
 
