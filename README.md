@@ -18,6 +18,15 @@ Supports single-threaded and multi-threaded simulations, hi-lo card counting, in
 
 ---
 
+
+## Build
+
+Build using cmake:
+```bash
+cmake -B build -G ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
+```
+
+
 ## Configuration Options
 
 ### Short / Long Flags
@@ -42,11 +51,4 @@ Supports single-threaded and multi-threaded simulations, hi-lo card counting, in
 ```bash
 ./blackjack -vmc -n 1000000
 # Equivalent to: verbose, multithread, card counting, 1,000,000 hands per thread
-```
-
-## Build
-
-Build using cmake:
-```bash
-cmake -B build && cmake --build build
 ```
