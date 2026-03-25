@@ -10,32 +10,32 @@ static double divide(const int64_t numerator, const int64_t denominator) {
                                 static_cast<double>(denominator);
 }
 
-void printGlobalVars(const Config &c) {
+void printGlobalVars() {
   std::cout << "SETTINGS" << std::endl;
-  std::cout << "Multithreading: " << (c.multiThread ? "Enabled" : "Disabled")
+  std::cout << "Multithreading: " << (config.multiThread ? "Enabled" : "Disabled")
             << std::endl;
-  if (c.multiThread)
-    std::cout << "Number of threads: " << c.threads << std::endl;
-  std::cout << "Number of hands per thread: " << c.numberHands << std::endl;
-  std::cout << "Starting bank: " << c.startingBank << std::endl;
-  std::cout << "Default bet size: " << c.defaultBetSize << std::endl;
-  std::cout << "Number of decks: " << c.numberDecks << std::endl;
+  if (config.multiThread)
+    std::cout << "Number of threads: " << config.threads << std::endl;
+  std::cout << "Number of hands per thread: " << config.numberHands << std::endl;
+  std::cout << "Starting bank: " << config.startingBank << std::endl;
+  std::cout << "Default bet size: " << config.defaultBetSize << std::endl;
+  std::cout << "Number of decks: " << config.numberDecks << std::endl;
   std::cout << "Penetration before shuffle: "
-            << c.penetrationBeforeShuffle * 100 << "%" << std::endl;
-  std::cout << "Dealer " << (c.dealerHitSoft17 ? "hits" : "stands")
+            << config.penetrationBeforeShuffle * 100 << "%" << std::endl;
+  std::cout << "Dealer " << (config.dealerHitSoft17 ? "hits" : "stands")
             << " on soft 17" << std::endl;
-  std::cout << "Card counting: " << (c.cardCounting ? "Enabled" : "Disabled")
+  std::cout << "Card counting: " << (config.cardCounting ? "Enabled" : "Disabled")
             << std::endl;
-  std::cout << "Negative bank: " << (c.debtAllowed ? "Enabled" : "Disabled")
+  std::cout << "Negative bank: " << (config.debtAllowed ? "Enabled" : "Disabled")
             << std::endl;
   std::cout << std::endl;
 }
 
-void printStats(const Stats &stats, const Config &c) {
+void printStats(const Stats &stats) {
   const int64_t profit =
-      stats.bank - (c.startingBank * static_cast<int64_t>(c.threads));
+      stats.bank - (config.startingBank * static_cast<int64_t>(config.threads));
   const auto evPercent = divide(profit, stats.totalBet);
-  if (c.verbose) {
+  if (config.verbose) {
     const double evPerHand = divide(profit, stats.hands);
     const double winPercent = divide(stats.playerWins, stats.hands);
     std::cout << "RESULTS" << std::endl;
@@ -52,17 +52,17 @@ void printStats(const Stats &stats, const Config &c) {
     std::cout << "Average player win percentage: " << winPercent * 100 << "%"
               << std::endl;
     std::cout << "Average player bank: "
-              << divide(stats.bank, static_cast<int64_t>(c.threads))
+              << divide(stats.bank, static_cast<int64_t>(config.threads))
               << std::endl;
     std::cout << "Average profit: "
-              << divide(profit, static_cast<int64_t>(c.threads)) << std::endl;
+              << divide(profit, static_cast<int64_t>(config.threads)) << std::endl;
     std::cout << "Average EV per hand: " << evPerHand << " $" << std::endl;
   }
   std::cout << "Average EV percentage: " << evPercent * 100 << "%" << std::endl;
 }
 
-void announceIfInteractive(const std::string &message, const Config &c) {
-  if (c.isInteractive)
+void announceIfInteractive(const std::string &message) {
+  if (config.isInteractive)
     std::cout << message << std::endl;
 }
 

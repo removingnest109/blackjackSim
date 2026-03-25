@@ -166,7 +166,7 @@ bool detectBlackjacks(const Hand &handPlayer, const Hand &handDealer,
   if (playerBJ && dealerBJ) {
     stats.runningCount += countTable[hole];
     stats.draw++;
-    announceIfInteractive("Push", config);
+    announceIfInteractive("Push");
     stats.bank += bet; // return original bet
     return true;
   }
@@ -174,13 +174,13 @@ bool detectBlackjacks(const Hand &handPlayer, const Hand &handDealer,
     stats.runningCount += countTable[hole];
     stats.dealerWins++;
     stats.dealerBlackjacks++;
-    announceIfInteractive("Dealer Blackjack", config);
+    announceIfInteractive("Dealer Blackjack");
     return true;
   }
   if (playerBJ) {
     stats.playerWins++;
     stats.playerBlackjacks++;
-    announceIfInteractive("Player Blackjack", config);
+    announceIfInteractive("Player Blackjack");
     stats.bank += static_cast<int64_t>(static_cast<double>(bet) *
                                        2.5); // original bet + 1.5x
     return true;
@@ -211,21 +211,21 @@ void resolveHand(const Hand &player, const Hand &dealer, Stats &stats) {
 
   if (playerBust) {
     ++stats.dealerWins;
-    announceIfInteractive("Player Bust", config);
+    announceIfInteractive("Player Bust");
   } else if (dealerBust) {
     ++stats.playerWins;
     stats.bank += player.bet * 2;
-    announceIfInteractive("Dealer Bust", config);
+    announceIfInteractive("Dealer Bust");
   } else if (playerWins) {
     ++stats.playerWins;
     stats.bank += player.bet * 2;
-    announceIfInteractive("Player Win", config);
+    announceIfInteractive("Player Win");
   } else if (dealerWins) {
     ++stats.dealerWins;
-    announceIfInteractive("Dealer Win", config);
+    announceIfInteractive("Dealer Win");
   } else if (push) {
     ++stats.draw;
     stats.bank += player.bet;
-    announceIfInteractive("Push", config);
+    announceIfInteractive("Push");
   }
 }
