@@ -1,9 +1,9 @@
-#include <thread>
 #include "cli.h"
 #include "config.h"
-#include "stats.h"
 #include "print.h"
 #include "simulation.h"
+#include "stats.h"
+#include <thread>
 
 int main(const int argc, char **argv) {
   getArgs(argc, argv);
