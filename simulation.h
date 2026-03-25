@@ -1,9 +1,9 @@
 #pragma once
 
-#include <cstdint>
-#include <random>
 #include "blackjack.h"
 #include "stats.h"
+#include <cstdint>
+#include <random>
 
 void playPlayerHands(Deck &deck, Hand hands[], int &handCount,
                      const Hand &dealer, Stats &stats);

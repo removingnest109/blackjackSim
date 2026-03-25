@@ -1,8 +1,8 @@
 #pragma once
 
-#include <random>
 #include "model.h"
 #include "stats.h"
+#include <random>
 
 void drawCard(Deck &deck, Hand &hand, const bool &visible, Stats &stats);
 void initDeck(Deck &deck);

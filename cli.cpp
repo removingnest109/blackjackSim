@@ -1,22 +1,22 @@
 #include "cli.h"
-#include <iostream>
 #include "config.h"
+#include <iostream>
 
 void printHelp() {
-    std::cout
-        << "Options:\n"
-           "  -h, --help                     Show help\n"
-           "  -v, --verbose                  Enable verbose mode\n"
-           "  -n, --hands <num>              Number of hands (default 10000000)\n"
-           "  -d, --decks <num>              Number of decks (default 6)\n"
-           "  -b, --bank <amount>            Starting bank (default 100000)\n"
-           "  -t, --bet <amount>             Default bet size (default 10)\n"
-           "  -p, --penetration <0.0-1.0>    Shuffle penetration (default 0.75)\n"
-           "  -s, --dealer-hit-soft-17       Dealer hits soft 17\n"
-           "  -i, --interactive              Interactive mode\n"
-           "  -c, --card-counting            Enable card counting\n"
-           "  -e, --debt                     Enable negative bank\n"
-           "  -m, --multithread              Enable multithreading\n";
+  std::cout
+      << "Options:\n"
+         "  -h, --help                     Show help\n"
+         "  -v, --verbose                  Enable verbose mode\n"
+         "  -n, --hands <num>              Number of hands (default 10000000)\n"
+         "  -d, --decks <num>              Number of decks (default 6)\n"
+         "  -b, --bank <amount>            Starting bank (default 100000)\n"
+         "  -t, --bet <amount>             Default bet size (default 10)\n"
+         "  -p, --penetration <0.0-1.0>    Shuffle penetration (default 0.75)\n"
+         "  -s, --dealer-hit-soft-17       Dealer hits soft 17\n"
+         "  -i, --interactive              Interactive mode\n"
+         "  -c, --card-counting            Enable card counting\n"
+         "  -e, --debt                     Enable negative bank\n"
+         "  -m, --multithread              Enable multithreading\n";
 }
 
 bool requiresValue(const std::string &arg) {

@@ -60,11 +60,11 @@ const Action PAIR[12][12] = {
     {S, S, P, P, P, P, P, P, P, P, P, P}  /* A,A */
 };
 
-
-Action getAction(const int total, const int dealerUp, const bool isSoft, const bool isPair, const int pairRank) {
-    if (isPair)
-        return PAIR[pairRank][dealerUp];
-    if (isSoft)
-        return SOFT[total][dealerUp];
-    return HARD[total][dealerUp];
+Action getAction(const int total, const int dealerUp, const bool isSoft,
+                 const bool isPair, const int pairRank) {
+  if (isPair)
+    return PAIR[pairRank][dealerUp];
+  if (isSoft)
+    return SOFT[total][dealerUp];
+  return HARD[total][dealerUp];
 }

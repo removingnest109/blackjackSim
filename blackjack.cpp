@@ -1,94 +1,94 @@
 #include "blackjack.h"
-#include <algorithm>
 #include "config.h"
 #include "print.h"
+#include <algorithm>
 
 void drawCard(Deck &deck, Hand &hand, const bool &visible, Stats &stats) {
-    const int card = deck.cards[deck.size - 1];
+  const int card = deck.cards[deck.size - 1];
 
-    stats.cardsSinceShuffle++;
-    stats.cardsDealt++;
+  stats.cardsSinceShuffle++;
+  stats.cardsDealt++;
 
-    if (config.cardCounting) {
-        stats.runningCount += visible * countTable[card];
-    }
+  if (config.cardCounting) {
+    stats.runningCount += visible * countTable[card];
+  }
 
-    deck.size--;
-    hand.cards[hand.cardCount++] = card;
-    hand.value += card;
-    if (card == 11)
-        hand.aceCount++;
+  deck.size--;
+  hand.cards[hand.cardCount++] = card;
+  hand.value += card;
+  if (card == 11)
+    hand.aceCount++;
 
-    while (hand.value > 21 && hand.aceCount > 0) {
-        hand.value -= 10;
-        hand.aceCount--;
-    }
+  while (hand.value > 21 && hand.aceCount > 0) {
+    hand.value -= 10;
+    hand.aceCount--;
+  }
 }
 
 void initDeck(Deck &deck) {
-    deck.size = 0;
-    deck.cards.resize(config.numberDecks * 52);
+  deck.size = 0;
+  deck.cards.resize(config.numberDecks * 52);
 
-    for (int d = 0; d < config.numberDecks; ++d) { // do once per deck
-        for (int value = 2; value <= 10; ++value) {  // for each value 2-10
-            for (int count = 0; count < 4; ++count) {  // 4x suits per card
-                deck.cards[deck.size++] = value;
-            }
-        }
-        for (int count = 0; count < 4 * 3;
-             ++count) { // 3x face cards, 4x suits per card
-            deck.cards[deck.size++] = 10;
-             }
-        for (int count = 0; count < 4; ++count) { // 4x suits of ace
-            deck.cards[deck.size++] = 11;
-        }
+  for (int d = 0; d < config.numberDecks; ++d) { // do once per deck
+    for (int value = 2; value <= 10; ++value) {  // for each value 2-10
+      for (int count = 0; count < 4; ++count) {  // 4x suits per card
+        deck.cards[deck.size++] = value;
+      }
     }
+    for (int count = 0; count < 4 * 3;
+         ++count) { // 3x face cards, 4x suits per card
+      deck.cards[deck.size++] = 10;
+    }
+    for (int count = 0; count < 4; ++count) { // 4x suits of ace
+      deck.cards[deck.size++] = 11;
+    }
+  }
 }
 
 void shuffleDeck(Deck &deck, std::mt19937 &rng, Stats &stats) {
-    initDeck(deck);
-    std::shuffle(deck.cards.begin(), deck.cards.begin() + deck.size, rng);
-    stats.shuffles++;
-    stats.cardsSinceShuffle = 0;
-    stats.runningCount = 0;
-    stats.trueCount = 0;
+  initDeck(deck);
+  std::shuffle(deck.cards.begin(), deck.cards.begin() + deck.size, rng);
+  stats.shuffles++;
+  stats.cardsSinceShuffle = 0;
+  stats.runningCount = 0;
+  stats.trueCount = 0;
 }
 
 void resetHand(Hand &hand, const int64_t &bet) {
-    hand.cardCount = 0;
-    hand.value = 0;
-    hand.aceCount = 0;
-    hand.bet = bet;
-    hand.doubled = false;
-    hand.splitAces = false;
+  hand.cardCount = 0;
+  hand.value = 0;
+  hand.aceCount = 0;
+  hand.bet = bet;
+  hand.doubled = false;
+  hand.splitAces = false;
 }
 
 void shuffleIfNeeded(Deck &deck, std::mt19937 &rng, Stats &stats) {
-    const int maxCardsBeforeShuffle = config.numberDecks * 52;
-    const int penetrationLimit =
-        static_cast<int>(config.penetrationBeforeShuffle *
-                         static_cast<float>(maxCardsBeforeShuffle));
+  const int maxCardsBeforeShuffle = config.numberDecks * 52;
+  const int penetrationLimit =
+      static_cast<int>(config.penetrationBeforeShuffle *
+                       static_cast<float>(maxCardsBeforeShuffle));
 
-    if (stats.cardsSinceShuffle > maxCardsBeforeShuffle - 20 ||
-        stats.cardsSinceShuffle > penetrationLimit) {
-        shuffleDeck(deck, rng, stats);
-        }
+  if (stats.cardsSinceShuffle > maxCardsBeforeShuffle - 20 ||
+      stats.cardsSinceShuffle > penetrationLimit) {
+    shuffleDeck(deck, rng, stats);
+  }
 }
 
 void dealInitialCards(Deck &deck, Hand &handPlayer, Hand &handDealer,
                       std::mt19937 &rng, const int64_t &bet, Stats &stats) {
-    resetHand(handPlayer, bet);
-    resetHand(handDealer);
+  resetHand(handPlayer, bet);
+  resetHand(handDealer);
 
-    stats.bank -= bet;
-    stats.totalBet += bet;
+  stats.bank -= bet;
+  stats.totalBet += bet;
 
-    shuffleIfNeeded(deck, rng, stats);
+  shuffleIfNeeded(deck, rng, stats);
 
-    drawCard(deck, handDealer, true, stats);
-    drawCard(deck, handPlayer, true, stats);
-    drawCard(deck, handDealer, false, stats);
-    drawCard(deck, handPlayer, true, stats);
+  drawCard(deck, handDealer, true, stats);
+  drawCard(deck, handPlayer, true, stats);
+  drawCard(deck, handDealer, false, stats);
+  drawCard(deck, handPlayer, true, stats);
 }
 
 Hand makeHand(const int64_t &bet) {
@@ -189,43 +189,43 @@ bool detectBlackjacks(const Hand &handPlayer, const Hand &handDealer,
 }
 
 void playDealerHand(Deck &deck, Hand &hand, Stats &stats) {
-    while (hand.value < 17 ||
-           (config.dealerHitSoft17 && hand.value == 17 && hand.aceCount > 0)) {
-        drawCard(deck, hand, true, stats);
-           }
+  while (hand.value < 17 ||
+         (config.dealerHitSoft17 && hand.value == 17 && hand.aceCount > 0)) {
+    drawCard(deck, hand, true, stats);
+  }
 }
 
 void resolveHand(const Hand &player, const Hand &dealer, Stats &stats) {
-    if (config.isInteractive) {
-        printHandState("Player", player);
-        printHandState("Dealer", dealer);
-    }
+  if (config.isInteractive) {
+    printHandState("Player", player);
+    printHandState("Dealer", dealer);
+  }
 
-    const bool playerBust = player.value > 21;
-    const bool dealerBust = dealer.value > 21;
-    const bool playerWins =
-        !playerBust && (dealerBust || player.value > dealer.value);
-    const bool dealerWins =
-        !dealerBust && !playerWins && player.value < dealer.value;
-    const bool push = !playerBust && !dealerBust && player.value == dealer.value;
+  const bool playerBust = player.value > 21;
+  const bool dealerBust = dealer.value > 21;
+  const bool playerWins =
+      !playerBust && (dealerBust || player.value > dealer.value);
+  const bool dealerWins =
+      !dealerBust && !playerWins && player.value < dealer.value;
+  const bool push = !playerBust && !dealerBust && player.value == dealer.value;
 
-    if (playerBust) {
-        ++stats.dealerWins;
-        announceIfInteractive("Player Bust", config);
-    } else if (dealerBust) {
-        ++stats.playerWins;
-        stats.bank += player.bet * 2;
-        announceIfInteractive("Dealer Bust", config);
-    } else if (playerWins) {
-        ++stats.playerWins;
-        stats.bank += player.bet * 2;
-        announceIfInteractive("Player Win", config);
-    } else if (dealerWins) {
-        ++stats.dealerWins;
-        announceIfInteractive("Dealer Win", config);
-    } else if (push) {
-        ++stats.draw;
-        stats.bank += player.bet;
-        announceIfInteractive("Push", config);
-    }
+  if (playerBust) {
+    ++stats.dealerWins;
+    announceIfInteractive("Player Bust", config);
+  } else if (dealerBust) {
+    ++stats.playerWins;
+    stats.bank += player.bet * 2;
+    announceIfInteractive("Dealer Bust", config);
+  } else if (playerWins) {
+    ++stats.playerWins;
+    stats.bank += player.bet * 2;
+    announceIfInteractive("Player Win", config);
+  } else if (dealerWins) {
+    ++stats.dealerWins;
+    announceIfInteractive("Dealer Win", config);
+  } else if (push) {
+    ++stats.draw;
+    stats.bank += player.bet;
+    announceIfInteractive("Push", config);
+  }
 }

@@ -1,11 +1,11 @@
 #include "simulation.h"
 
-#include <iomanip>
-#include <iostream>
-#include <thread>
 #include "actions.h"
 #include "config.h"
 #include "interactive.h"
+#include <iomanip>
+#include <iostream>
+#include <thread>
 
 void simulatePlayerHands(Deck &deck, Hand hands[], int &handCount,
                          const Hand &dealer, Stats &stats) {
@@ -51,8 +51,6 @@ void playPlayerHands(Deck &deck, Hand hands[], int &handCount,
     simulatePlayerHands(deck, hands, handCount, dealer, stats);
   }
 }
-
-
 
 void turnFull(Deck &deck, Hand &dealer, std::mt19937 &rng, const int64_t &bet,
               Stats &stats) {

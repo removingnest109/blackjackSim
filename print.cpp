@@ -1,23 +1,22 @@
 #include "print.h"
-#include <iostream>
 #include "config.h"
 #include "model.h"
 #include "stats.h"
+#include <iostream>
 
 static double divide(const int64_t numerator, const int64_t denominator) {
-    return denominator == 0 ? 0.0
-                            : static_cast<double>(numerator) /
-                                  static_cast<double>(denominator);
+  return denominator == 0 ? 0.0
+                          : static_cast<double>(numerator) /
+                                static_cast<double>(denominator);
 }
 
 void printGlobalVars(const Config &c) {
   std::cout << "SETTINGS" << std::endl;
-  std::cout << "Multithreading: "
-            << (c.multiThread ? "Enabled" : "Disabled") << std::endl;
+  std::cout << "Multithreading: " << (c.multiThread ? "Enabled" : "Disabled")
+            << std::endl;
   if (c.multiThread)
     std::cout << "Number of threads: " << c.threads << std::endl;
-  std::cout << "Number of hands per thread: " << c.numberHands
-            << std::endl;
+  std::cout << "Number of hands per thread: " << c.numberHands << std::endl;
   std::cout << "Starting bank: " << c.startingBank << std::endl;
   std::cout << "Default bet size: " << c.defaultBetSize << std::endl;
   std::cout << "Number of decks: " << c.numberDecks << std::endl;
@@ -25,10 +24,10 @@ void printGlobalVars(const Config &c) {
             << c.penetrationBeforeShuffle * 100 << "%" << std::endl;
   std::cout << "Dealer " << (c.dealerHitSoft17 ? "hits" : "stands")
             << " on soft 17" << std::endl;
-  std::cout << "Card counting: "
-            << (c.cardCounting ? "Enabled" : "Disabled") << std::endl;
-  std::cout << "Negative bank: "
-            << (c.debtAllowed ? "Enabled" : "Disabled") << std::endl;
+  std::cout << "Card counting: " << (c.cardCounting ? "Enabled" : "Disabled")
+            << std::endl;
+  std::cout << "Negative bank: " << (c.debtAllowed ? "Enabled" : "Disabled")
+            << std::endl;
   std::cout << std::endl;
 }
 
@@ -56,8 +55,7 @@ void printStats(const Stats &stats, const Config &c) {
               << divide(stats.bank, static_cast<int64_t>(c.threads))
               << std::endl;
     std::cout << "Average profit: "
-              << divide(profit, static_cast<int64_t>(c.threads))
-              << std::endl;
+              << divide(profit, static_cast<int64_t>(c.threads)) << std::endl;
     std::cout << "Average EV per hand: " << evPerHand << " $" << std::endl;
   }
   std::cout << "Average EV percentage: " << evPercent * 100 << "%" << std::endl;
@@ -69,8 +67,8 @@ void announceIfInteractive(const std::string &message, const Config &c) {
 }
 
 void printHandState(const std::string &label, const Hand &hand) {
-    std::cout << label << " Hand: ";
-    for (int i = 0; i < hand.cardCount; ++i)
-        std::cout << hand.cards[i] << " ";
-    std::cout << " -> " << hand.value << std::endl;
+  std::cout << label << " Hand: ";
+  for (int i = 0; i < hand.cardCount; ++i)
+    std::cout << hand.cards[i] << " ";
+  std::cout << " -> " << hand.value << std::endl;
 }

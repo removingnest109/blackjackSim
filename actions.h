@@ -11,4 +11,5 @@ extern const Action HARD[22][12];
 extern const Action SOFT[22][12];
 extern const Action PAIR[12][12];
 
-Action getAction(int total, int dealerUp, bool isSoft, bool isPair, int pairRank);
+Action getAction(int total, int dealerUp, bool isSoft, bool isPair,
+                 int pairRank);
