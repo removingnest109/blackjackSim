@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 
 struct Stats {
   int64_t hands = 0;
