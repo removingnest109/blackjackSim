@@ -12,7 +12,7 @@ int main(const int argc, char **argv) {
   if (config.threads == 0)
     config.threads = 1;
   if (config.verbose)
-    printGlobalVars(config);
-  printStats(runSim(), config);
+    printGlobalVars();
+  printStats(runSim());
   return 0;
 }

@@ -1,12 +1,10 @@
 #pragma once
 
 #include <string>
+#include "model.h"
+#include "stats.h"
 
-struct Stats;
-struct Hand;
-struct Config;
-
-void printGlobalVars(const Config &c);
-void printStats(const Stats &stats, const Config &c);
-void announceIfInteractive(const std::string &message, const Config &c);
+void printGlobalVars();
+void printStats(const Stats &stats);
+void announceIfInteractive(const std::string &message);
 void printHandState(const std::string &label, const Hand &hand);
