@@ -2,7 +2,6 @@
 
 #include <array>
 #include <cstdint>
-#include <vector>
 
 struct Hand {
   std::array<int, 22> cards{};
