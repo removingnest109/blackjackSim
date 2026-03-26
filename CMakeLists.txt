@@ -37,7 +37,7 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(blackjack_tests
         tests/test_blackjack.cpp
-        tests/test_resolveHand.cpp
+        tests/test_resolve_hand.cpp
         tests/test_card_counting.cpp
 )
 target_link_libraries(blackjack_tests PRIVATE blackjack_core GTest::gtest_main)
