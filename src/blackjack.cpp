@@ -3,8 +3,9 @@
 #include "print.h"
 #include <algorithm>
 
-void drawCard(Deck &deck, Hand &hand, const bool &visible, Stats &stats) {
-  const int card = deck.cards[deck.size - 1];
+void drawCard(std::vector<int> &deck, Hand &hand, const bool &visible, Stats &stats) {
+  const int card = deck.back();
+  deck.pop_back();
 
   stats.cardsSinceShuffle++;
   stats.cardsDealt++;
@@ -13,7 +14,6 @@ void drawCard(Deck &deck, Hand &hand, const bool &visible, Stats &stats) {
     stats.runningCount += visible * countTable[card];
   }
 
-  deck.size--;
   hand.cards[hand.cardCount++] = card;
   hand.value += card;
   if (card == 11)
@@ -25,29 +25,29 @@ void drawCard(Deck &deck, Hand &hand, const bool &visible, Stats &stats) {
   }
 }
 
-void initDeck(Deck &deck) {
-  deck.size = 0;
-  deck.cards.resize(config.numberDecks * 52);
+void initDeck(std::vector<int> &deck) {
+  deck.clear();
+  deck.reserve(config.numberDecks * 52);
 
   for (int d = 0; d < config.numberDecks; ++d) { // do once per deck
     for (int value = 2; value <= 10; ++value) {  // for each value 2-10
       for (int count = 0; count < 4; ++count) {  // 4x suits per card
-        deck.cards[deck.size++] = value;
+        deck.push_back(value);
       }
     }
     for (int count = 0; count < 4 * 3;
          ++count) { // 3x face cards, 4x suits per card
-      deck.cards[deck.size++] = 10;
+      deck.push_back(10);
     }
     for (int count = 0; count < 4; ++count) { // 4x suits of ace
-      deck.cards[deck.size++] = 11;
+      deck.push_back(11);
     }
   }
 }
 
-void shuffleDeck(Deck &deck, std::mt19937 &rng, Stats &stats) {
+void shuffleDeck(std::vector<int> &deck, std::mt19937 &rng, Stats &stats) {
   initDeck(deck);
-  std::shuffle(deck.cards.begin(), deck.cards.begin() + deck.size, rng);
+  std::shuffle(std::begin(deck), std::end(deck), rng);
   stats.shuffles++;
   stats.cardsSinceShuffle = 0;
   stats.runningCount = 0;
@@ -63,7 +63,7 @@ void resetHand(Hand &hand, const int64_t &bet) {
   hand.splitAces = false;
 }
 
-void shuffleIfNeeded(Deck &deck, std::mt19937 &rng, Stats &stats) {
+void shuffleIfNeeded(std::vector<int> &deck, std::mt19937 &rng, Stats &stats) {
   const int maxCardsBeforeShuffle = config.numberDecks * 52;
   const int penetrationLimit =
       static_cast<int>(config.penetrationBeforeShuffle *
@@ -75,7 +75,7 @@ void shuffleIfNeeded(Deck &deck, std::mt19937 &rng, Stats &stats) {
   }
 }
 
-void dealInitialCards(Deck &deck, Hand &handPlayer, Hand &handDealer,
+void dealInitialCards(std::vector<int> &deck, Hand &handPlayer, Hand &handDealer,
                       std::mt19937 &rng, const int64_t &bet, Stats &stats) {
   resetHand(handPlayer, bet);
   resetHand(handDealer);
@@ -97,7 +97,7 @@ Hand makeHand(const int64_t &bet) {
   return h;
 }
 
-Hand split(Deck &deck, Hand &originalHand, Stats &stats) {
+Hand split(std::vector<int> &deck, Hand &originalHand, Stats &stats) {
   stats.bank -= originalHand.bet; // bet for newHand
   stats.totalBet += originalHand.bet;
   Hand newHand = makeHand(originalHand.bet);
@@ -125,7 +125,7 @@ Hand split(Deck &deck, Hand &originalHand, Stats &stats) {
   return newHand;
 }
 
-void doubleDown(Deck &deck, Hand &hand, Stats &stats) {
+void doubleDown(std::vector<int> &deck, Hand &hand, Stats &stats) {
   stats.bank -= hand.bet; // second bet for double down
   stats.totalBet += hand.bet;
   hand.bet *= 2;
@@ -134,8 +134,8 @@ void doubleDown(Deck &deck, Hand &hand, Stats &stats) {
   drawCard(deck, hand, true, stats);
 }
 
-void getTrueCount(const Deck &deck, Stats &stats) {
-  const double decksRemaining = static_cast<double>(deck.size) / 52.0;
+void getTrueCount(const std::vector<int> &deck, Stats &stats) {
+  const double decksRemaining = static_cast<double>(deck.size()) / 52.0;
   stats.trueCount = static_cast<double>(stats.runningCount) / decksRemaining;
 }
 
@@ -188,7 +188,7 @@ bool detectBlackjacks(const Hand &handPlayer, const Hand &handDealer,
   return false;
 }
 
-void playDealerHand(Deck &deck, Hand &hand, Stats &stats) {
+void playDealerHand(std::vector<int> &deck, Hand &hand, Stats &stats) {
   while (hand.value < 17 ||
          (config.dealerHitSoft17 && hand.value == 17 && hand.aceCount > 0)) {
     drawCard(deck, hand, true, stats);

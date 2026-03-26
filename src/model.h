@@ -16,9 +16,4 @@ struct Hand {
   bool isSoft() const { return value <= 21 && aceCount > 0; }
 };
 
-struct Deck {
-  std::vector<int> cards;
-  int size = 0;
-};
-
 extern const int8_t countTable[12];
