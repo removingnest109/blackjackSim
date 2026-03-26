@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include "model.h"
 #include "stats.h"
 
