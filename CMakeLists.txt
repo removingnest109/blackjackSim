@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 4.2)
 project(blackjackSim)
 
-set(CMAKE_CXX_COMPILER "clang++" CACHE STRING "" FORCE)
 set(CMAKE_CXX_STANDARD 11)
 
 add_compile_options(-Wall -Werror)
