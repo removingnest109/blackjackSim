@@ -21,38 +21,38 @@ TEST(CardCounting, UsesExpectedThresholds) {
 }
 
 TEST(CardCounting, HiLoCountsCardsCorrectly) {
-    Deck d;
+    std::vector<int> d;
     Hand h;
     Stats s;
     config.cardCounting = true;
-    d.cards.push_back(2);
+    d.push_back(2);
     drawCard(d, h,true, s);
     EXPECT_EQ(s.runningCount, 1);
-    d.cards.push_back(3);
+    d.push_back(3);
     drawCard(d, h,true, s);
     EXPECT_EQ(s.runningCount, 2);
-    d.cards.push_back(4);
+    d.push_back(4);
     drawCard(d, h,true, s);
     EXPECT_EQ(s.runningCount, 3);
-    d.cards.push_back(5);
+    d.push_back(5);
     drawCard(d, h,true, s);
     EXPECT_EQ(s.runningCount, 4);
-    d.cards.push_back(6);
+    d.push_back(6);
     drawCard(d, h,true, s);
     EXPECT_EQ(s.runningCount, 5);
-    d.cards.push_back(7);
+    d.push_back(7);
     drawCard(d, h,true, s);
     EXPECT_EQ(s.runningCount, 5);
-    d.cards.push_back(8);
+    d.push_back(8);
     drawCard(d, h,true, s);
     EXPECT_EQ(s.runningCount, 5);
-    d.cards.push_back(9);
+    d.push_back(9);
     drawCard(d, h,true, s);
     EXPECT_EQ(s.runningCount, 5);
-    d.cards.push_back(10);
+    d.push_back(10);
     drawCard(d, h,true, s);
     EXPECT_EQ(s.runningCount, 4);
-    d.cards.push_back(11);
+    d.push_back(11);
     drawCard(d, h,true, s);
     EXPECT_EQ(s.runningCount, 3);
 }
