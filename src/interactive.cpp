@@ -3,7 +3,7 @@
 
 #include "blackjack.h"
 
-void interactiveHand(Deck &deck, Hand hands[], int &handCount,
+void interactiveHand(std::vector<int> &deck, Hand hands[], int &handCount,
                      const Hand &dealer, Stats &stats) {
   for (int i = 0; i < handCount; ++i) {
     while (true) {

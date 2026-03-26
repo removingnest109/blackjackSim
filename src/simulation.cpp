@@ -7,7 +7,7 @@
 #include <iostream>
 #include <thread>
 
-void simulatePlayerHands(Deck &deck, Hand hands[], int &handCount,
+void simulatePlayerHands(std::vector<int> &deck, Hand hands[], int &handCount,
                          const Hand &dealer, Stats &stats) {
   for (int i = 0; i < handCount; ++i) {
     bool done = false;
@@ -42,7 +42,7 @@ void simulatePlayerHands(Deck &deck, Hand hands[], int &handCount,
   }
 }
 
-void playPlayerHands(Deck &deck, Hand hands[], int &handCount,
+void playPlayerHands(std::vector<int> &deck, Hand hands[], int &handCount,
                      const Hand &dealer, Stats &stats) {
   if (config.isInteractive) {
     std::cout << "Round " << stats.hands << std::endl;
@@ -52,7 +52,7 @@ void playPlayerHands(Deck &deck, Hand hands[], int &handCount,
   }
 }
 
-void turnFull(Deck &deck, Hand &dealer, std::mt19937 &rng, const int64_t &bet,
+void turnFull(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng, const int64_t &bet,
               Stats &stats) {
   Hand hands[4];
   int handCount = 1;
@@ -74,7 +74,7 @@ void turnFull(Deck &deck, Hand &dealer, std::mt19937 &rng, const int64_t &bet,
   }
 }
 
-void playHand(Deck &deck, Hand &dealer, std::mt19937 &rng, Stats &local) {
+void playHand(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng, Stats &local) {
   if (config.cardCounting)
     getTrueCount(deck, local);
   int64_t bet = config.cardCounting
@@ -100,7 +100,7 @@ Stats runSimThread(const uint64_t &seed) {
   local.bank = config.startingBank;
   std::mt19937 rng(seed);
 
-  Deck deck;
+  std::vector<int> deck;
   shuffleDeck(deck, rng, local);
 
   Hand dealer;
