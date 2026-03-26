@@ -52,13 +52,15 @@ void playPlayerHands(std::vector<int> &deck, Hand hands[], int &handCount,
   }
 }
 
-void turnFull(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng, const int64_t &bet,
-              Stats &stats) {
+void turnFull(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng,
+              const int64_t &bet, Stats &stats) {
   Hand hands[4];
   int handCount = 1;
   hands[0] = makeHand(bet);
 
-  dealInitialCards(deck, hands[0], dealer, rng, bet, stats);
+  shuffleIfNeeded(deck, rng, stats);
+
+  dealInitialCards(deck, hands[0], dealer, bet, stats);
   stats.hands++;
 
   if (detectBlackjacks(hands[0], dealer, bet, stats))
@@ -74,7 +76,8 @@ void turnFull(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng, const int
   }
 }
 
-void playHand(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng, Stats &local) {
+void playHand(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng,
+              Stats &local) {
   if (config.cardCounting)
     getTrueCount(deck, local);
   int64_t bet = config.cardCounting

@@ -1,8 +1,8 @@
 #pragma once
 
-#include <string>
 #include "model.h"
 #include "stats.h"
+#include <string>
 
 void printGlobalVars();
 void printStats(const Stats &stats);
