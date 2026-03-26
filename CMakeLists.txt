@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.2)
-project(blackjackSim)
+project(blackjack)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,8 +22,8 @@ add_library(blackjack_core
 
 target_include_directories(blackjack_core PUBLIC src)
 
-add_executable(blackjackSim src/main.cpp)
-target_link_libraries(blackjackSim PRIVATE blackjack_core)
+add_executable(blackjack src/main.cpp)
+target_link_libraries(blackjack PRIVATE blackjack_core)
 
 include(CTest)
 enable_testing()
@@ -37,6 +37,8 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(blackjack_tests
         tests/test_blackjack.cpp
+        tests/test_resolveHand.cpp
+        tests/test_card_counting.cpp
 )
 target_link_libraries(blackjack_tests PRIVATE blackjack_core GTest::gtest_main)
 target_compile_features(blackjack_tests PRIVATE cxx_std_17)
