@@ -12,11 +12,12 @@ static double divide(const int64_t numerator, const int64_t denominator) {
 
 void printGlobalVars() {
   std::cout << "SETTINGS" << std::endl;
-  std::cout << "Multithreading: " << (config.multiThread ? "Enabled" : "Disabled")
-            << std::endl;
+  std::cout << "Multithreading: "
+            << (config.multiThread ? "Enabled" : "Disabled") << std::endl;
   if (config.multiThread)
     std::cout << "Number of threads: " << config.threads << std::endl;
-  std::cout << "Number of hands per thread: " << config.numberHands << std::endl;
+  std::cout << "Number of hands per thread: " << config.numberHands
+            << std::endl;
   std::cout << "Starting bank: " << config.startingBank << std::endl;
   std::cout << "Default bet size: " << config.defaultBetSize << std::endl;
   std::cout << "Number of decks: " << config.numberDecks << std::endl;
@@ -24,10 +25,10 @@ void printGlobalVars() {
             << config.penetrationBeforeShuffle * 100 << "%" << std::endl;
   std::cout << "Dealer " << (config.dealerHitSoft17 ? "hits" : "stands")
             << " on soft 17" << std::endl;
-  std::cout << "Card counting: " << (config.cardCounting ? "Enabled" : "Disabled")
-            << std::endl;
-  std::cout << "Negative bank: " << (config.debtAllowed ? "Enabled" : "Disabled")
-            << std::endl;
+  std::cout << "Card counting: "
+            << (config.cardCounting ? "Enabled" : "Disabled") << std::endl;
+  std::cout << "Negative bank: "
+            << (config.debtAllowed ? "Enabled" : "Disabled") << std::endl;
   std::cout << std::endl;
 }
 
@@ -55,7 +56,8 @@ void printStats(const Stats &stats) {
               << divide(stats.bank, static_cast<int64_t>(config.threads))
               << std::endl;
     std::cout << "Average profit: "
-              << divide(profit, static_cast<int64_t>(config.threads)) << std::endl;
+              << divide(profit, static_cast<int64_t>(config.threads))
+              << std::endl;
     std::cout << "Average EV per hand: " << evPerHand << " $" << std::endl;
   }
   std::cout << "Average EV percentage: " << evPercent * 100 << "%" << std::endl;
