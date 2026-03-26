@@ -2,27 +2,51 @@ cmake_minimum_required(VERSION 4.2)
 project(blackjackSim)
 
 set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_compile_options(-Wall -Werror)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native -flto -DNDEBUG")
-
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-add_executable(blackjackSim src/main.cpp
-        src/config.h
+
+add_library(blackjack_core
         src/config.cpp
-        src/stats.h
-        src/print.h
         src/print.cpp
         src/model.cpp
-        src/model.h
         src/actions.cpp
-        src/actions.h
         src/interactive.cpp
-        src/interactive.h
         src/blackjack.cpp
-        src/blackjack.h
         src/simulation.cpp
-        src/simulation.h
         src/cli.cpp
-        src/cli.h)
+)
+
+target_include_directories(blackjack_core PUBLIC src)
+
+add_executable(blackjackSim src/main.cpp)
+target_link_libraries(blackjackSim PRIVATE blackjack_core)
+
+include(CTest)
+enable_testing()
+
+include(FetchContent)
+FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+)
+FetchContent_MakeAvailable(googletest)
+
+add_executable(blackjack_tests
+        tests/test_blackjack.cpp
+)
+target_link_libraries(blackjack_tests PRIVATE blackjack_core GTest::gtest_main)
+target_compile_features(blackjack_tests PRIVATE cxx_std_17)
+
+if (TARGET gtest)
+    set_target_properties(gtest PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES)
+endif ()
+if (TARGET gtest_main)
+    set_target_properties(gtest_main PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES)
+endif ()
+
+include(GoogleTest)
+gtest_discover_tests(blackjack_tests)
