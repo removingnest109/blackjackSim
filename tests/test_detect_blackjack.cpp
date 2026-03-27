@@ -2,7 +2,7 @@
 #include "stats.h"
 #include <gtest/gtest.h>
 
-TEST(Blackjack, DetectsNaturalBlackjackOnly) {
+TEST(DetectBlackjack, DetectsNaturalBlackjackOnly) {
   Hand h;
   h.cardCount = 2;
   h.value = 21;
@@ -13,7 +13,7 @@ TEST(Blackjack, DetectsNaturalBlackjackOnly) {
   EXPECT_FALSE(isBlackjack(h));
 }
 
-TEST(Blackjack, DetectsBothBlackjacksWithBetReturned) {
+TEST(DetectBlackjack, DetectsBothBlackjacksWithBetReturned) {
   Hand hp, hd;
   Stats s;
   hp.cardCount = 2;
@@ -23,7 +23,7 @@ TEST(Blackjack, DetectsBothBlackjacksWithBetReturned) {
   EXPECT_TRUE(detectBlackjacks(hp, hd, 100, s) && s.draw > 0 && s.bank == 100);
 }
 
-TEST(Blackjack, DetectsDealerBlackjack) {
+TEST(DetectBlackjack, DetectsDealerBlackjack) {
   Hand hp, hd;
   Stats s;
   hp.cardCount = 2;
@@ -34,7 +34,7 @@ TEST(Blackjack, DetectsDealerBlackjack) {
               s.bank == 0);
 }
 
-TEST(Blackjack, DetectsPlayerBlackjackWithPayout) {
+TEST(DetectBlackjack, DetectsPlayerBlackjackWithPayout) {
   Hand hp, hd;
   Stats s;
   hp.cardCount = 2;
