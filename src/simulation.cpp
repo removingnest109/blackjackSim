@@ -77,25 +77,25 @@ void turnFull(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng,
 }
 
 void playHand(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng,
-              Stats &local) {
+              Stats &stats) {
   if (config.cardCounting)
-    getTrueCount(deck, local);
+    getTrueCount(deck, stats);
   int64_t bet = config.cardCounting
-                    ? betFromTrueCount(local) * config.defaultBetSize
+                    ? betFromTrueCount(stats) * config.defaultBetSize
                     : config.defaultBetSize;
   if (config.isInteractive) {
     if (config.cardCounting)
-      std::cout << "count (true count): " << local.runningCount << " ("
-                << std::setprecision(2) << std::fixed << local.trueCount << ")"
+      std::cout << "count (true count): " << stats.runningCount << " ("
+                << std::setprecision(2) << std::fixed << stats.trueCount << ")"
                 << std::endl;
-    std::cout << "bank: $" << local.bank << std::endl;
+    std::cout << "bank: $" << stats.bank << std::endl;
     std::cout << "enter bet: $";
     std::cin >> bet;
   }
-  if (local.bank < bet && !config.debtAllowed)
+  if (stats.bank < bet && !config.debtAllowed)
     return;
   ;
-  turnFull(deck, dealer, rng, bet, local);
+  turnFull(deck, dealer, rng, bet, stats);
 }
 
 Stats runSimThread(const uint64_t &seed) {
