@@ -19,21 +19,16 @@ void printHelp() {
          "  -m, --multithread              Enable multithreading\n";
 }
 
-bool requiresValue(const std::string &arg) {
-  return arg == "-n" || arg == "--hands" || arg == "-d" || arg == "--decks" ||
-         arg == "-b" || arg == "--bank" || arg == "-t" || arg == "--bet" ||
-         arg == "-p" || arg == "--penetration";
-}
-
 void getArgs(const int argc, char **argv) {
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
 
-    if (arg.rfind("--", 0) == 0) { // starts with --
+    if (arg.rfind("--", 0) == 0) {
       if (arg == "--help") {
         printHelp();
         std::exit(0);
-      } else if (arg == "--verbose")
+      }
+      if (arg == "--verbose")
         config.verbose = true;
       else if (arg == "--dealer-hit-soft-17")
         config.dealerHitSoft17 = true;
