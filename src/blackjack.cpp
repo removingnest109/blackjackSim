@@ -30,17 +30,17 @@ void initDeck(std::vector<int> &deck) {
   deck.clear();
   deck.reserve(config.numberDecks * 52);
 
-  for (int d = 0; d < config.numberDecks; ++d) { // do once per deck
+  for (int i = 0; i < config.numberDecks; ++i) { // do once per deck
     for (int value = 2; value <= 10; ++value) {  // for each value 2-10
       for (int count = 0; count < 4; ++count) {  // 4x suits per card
         deck.push_back(value);
       }
     }
-    for (int count = 0; count < 4 * 3;
-         ++count) { // 3x face cards, 4x suits per card
+    for (int j = 0; j < 4 * 3;
+         ++j) { // 3x face cards, 4x suits per card
       deck.push_back(10);
     }
-    for (int count = 0; count < 4; ++count) { // 4x suits of ace
+    for (int j = 0; j < 4; ++j) { // 4x suits of ace
       deck.push_back(11);
     }
   }
