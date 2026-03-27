@@ -36,7 +36,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 
 add_executable(blackjack_tests
-        tests/test_blackjack.cpp
+        tests/test_detect_blackjack.cpp
         tests/test_resolve_hand.cpp
         tests/test_card_counting.cpp
 )
