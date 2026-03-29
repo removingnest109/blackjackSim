@@ -36,8 +36,7 @@ void initDeck(std::vector<int> &deck) {
         deck.push_back(value);
       }
     }
-    for (int j = 0; j < 4 * 3;
-         ++j) { // 3x face cards, 4x suits per card
+    for (int j = 0; j < 4 * 3; ++j) { // 3x face cards, 4x suits per card
       deck.push_back(10);
     }
     for (int j = 0; j < 4; ++j) { // 4x suits of ace
