@@ -23,7 +23,7 @@ Supports single-threaded and multithreaded simulations, hi-lo card counting, int
 
 Build using cmake:
 ```bash
-cmake -B build -G ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build
+cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target blackjack
 ```
 
 
