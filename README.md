@@ -34,7 +34,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target blackj
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-h`, `--help` | Show help message | - |
-| `-v`, `--verbose` | Enable verbose mode (prints detailed stats per thread) | Disabled |
+| `-v`, `--verbose` | Enable verbose mode (prints detailed stats) | Disabled |
 | `-n`, `--hands <num>` | Number of hands per thread | 10,000,000 |
 | `-d`, `--decks <num>` | Number of decks in shoe | 6 |
 | `-b`, `--bank <amount>` | Starting bank | 100,000 |
