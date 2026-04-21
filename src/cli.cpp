@@ -1,6 +1,7 @@
 #include "cli.h"
 #include "config.h"
 #include <iostream>
+#include <string>
 
 void printHelp() {
   std::cout
