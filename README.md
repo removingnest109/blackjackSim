@@ -17,6 +17,7 @@ Supports single-threaded and multithreaded simulations, hi-lo card counting, int
 - Interactive mode for step-by-step gameplay.
 - Multithreading to leverage multiple CPU cores.
 - Tracks detailed statistics including wins, losses, blackjacks, splits, doubles, and expected value.
+- No config files, completely portable and configured by cli arguments
 
 ---
 
