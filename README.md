@@ -1,6 +1,6 @@
 # Blackjack Simulator (C++11)
 
-![Screenshot](screenshots/blackjack.png)
+![2.4 billion hands simulated in 7.7 seconds](screenshots/blackjack.png)
 
 A high-performance, configurable blackjack simulator written in portable C++11.  
 Supports single-threaded and multithreaded simulations, hi-lo card counting, interactive mode, and detailed statistics.
