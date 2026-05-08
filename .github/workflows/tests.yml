@@ -3,8 +3,11 @@ name: Tests
 on:
   push:
     branches: [ master ]
-  pull_request:
-    branches: [ master ]
+    paths:
+      - src/**
+      - tests/**
+      - CMakeLists.txt
+      - .github/workflows/tests.yml
 
 jobs:
   test:

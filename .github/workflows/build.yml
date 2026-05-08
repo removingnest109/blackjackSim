@@ -3,8 +3,10 @@ name: Build
 on:
   push:
     branches: [ master ]
-  pull_request:
-    branches: [ master ]
+    paths:
+      - src/**
+      - CMakeLists.txt
+      - .github/workflows/build.yml
 
 jobs:
   build:
