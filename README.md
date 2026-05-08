@@ -1,5 +1,17 @@
 # Blackjack Simulator (C++11)
 
+<p align="center">
+
+<a href="https://github.com/removingnest109/blackjackSim/actions/workflows/build.yml">
+<img alt="Build" src="https://github.com/removingnest109/openstream/actions/workflows/build.yml/badge.svg"/>
+</a>
+
+<a href="https://github.com/removingnest109/blackjackSim/actions/workflows/tests.yml">
+<img alt="Tests" src="https://github.com/removingnest109/openstream/actions/workflows/tests.yml/badge.svg"/>
+</a>
+
+</p>
+
 ![2.4 billion hands simulated in 7.7 seconds](screenshots/blackjack.png)
 
 A high-performance, configurable blackjack simulator written in portable C++11.  
