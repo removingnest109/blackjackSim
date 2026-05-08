@@ -3,11 +3,11 @@
 <p align="center">
 
 <a href="https://github.com/removingnest109/blackjackSim/actions/workflows/build.yml">
-<img alt="Build" src="https://github.com/removingnest109/openstream/actions/workflows/build.yml/badge.svg"/>
+<img alt="Build" src="https://github.com/removingnest109/blackjackSim/actions/workflows/build.yml/badge.svg"/>
 </a>
 
 <a href="https://github.com/removingnest109/blackjackSim/actions/workflows/tests.yml">
-<img alt="Tests" src="https://github.com/removingnest109/openstream/actions/workflows/tests.yml/badge.svg"/>
+<img alt="Tests" src="https://github.com/removingnest109/blackjackSim/actions/workflows/tests.yml/badge.svg"/>
 </a>
 
 </p>
