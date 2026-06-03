@@ -14,10 +14,20 @@
 
 ![2.4 billion hands simulated in 7.7 seconds](screenshots/blackjack.png)
 
-A high-performance, configurable blackjack simulator written in portable C++11.  
-Supports single-threaded and multithreaded simulations, hi-lo card counting, interactive mode, and detailed statistics.
+A high-performance Monte Carlo blackjack simulator written in portable C++11.  
+Uses statistical sampling through millions of simulated hands to estimate player outcomes and strategy validity. Supports single-threaded and multithreaded simulations, hi-lo card counting, interactive mode, and detailed statistics.
 
----
+## Monte Carlo Simulation
+
+This simulator implements **Monte Carlo sampling** to estimate blackjack outcomes through statistical inference rather than analytical calculation. By simulating millions of hands with randomized card distributions, it can be used to determine:
+
+- **Win/loss probabilities** under various strategies
+- **Expected value** of betting strategies
+- **Strategy convergence** - how many hands are needed for reliable estimates
+- **Impact of rule variations** (e.g., dealer hitting soft 17)
+- **Card counting effectiveness** through true count distribution
+
+The law of large numbers ensures that as the number of simulated hands increases, the empirical results converge to true population parameters. With billions of hands simulated, the estimates achieve high statistical precision, making this approach superior to manual calculation for complex multi-deck scenarios.
 
 ## Features
 
@@ -30,9 +40,7 @@ Supports single-threaded and multithreaded simulations, hi-lo card counting, int
 - Multithreading to leverage multiple CPU cores.
 - Tracks detailed statistics including wins, losses, blackjacks, splits, doubles, and expected value.
 - No config files, completely portable and configured by cli arguments
-
----
-
+- Testing to ensure simulation correctness
 
 ## Build
 
@@ -40,7 +48,6 @@ Build using cmake:
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target blackjack
 ```
-
 
 ## Configuration Options
 
