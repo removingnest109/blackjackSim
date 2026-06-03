@@ -1,4 +1,4 @@
-# Blackjack Simulator (C++11)
+# Monte Carlo Blackjack Simulator (C++11)
 
 <p align="center">
 
