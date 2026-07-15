@@ -1,5 +1,6 @@
 /cmake-build-debug/
 /build/
+/build-release/
 /compile_commands.json
 /.idea/
 /cmake-build-release/
