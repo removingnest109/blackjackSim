@@ -39,7 +39,6 @@ The law of large numbers ensures that as the number of simulated hands increases
 - Optional hi-lo card counting with true count betting and a fully configurable bet curve.
 - Multithreading to leverage multiple CPU cores.
 - Tracks detailed statistics including wins, losses, blackjacks, splits, doubles, and expected value.
-- No config files, completely portable and configured by cli arguments
 - Testing to ensure simulation correctness
 
 ## Build
@@ -56,7 +55,7 @@ A cross-platform (Windows/Linux) desktop frontend built with [Dear ImGui](https:
 ### Live simulation view
 
 - Every simulation parameter from the CLI, plus a thread-count slider, editable without touching a terminal.
-- **Live bank balance graph** — one line per thread, streamed from the running simulation via lock-free snapshots with effectively zero overhead on the hot loop (hundreds of millions of hands per second).
+- **Live bank balance graph** — one line per thread, streamed from the running simulation via lock-free snapshots with effectively zero overhead on the hot loop (tens of millions of hands per second on modern hardware).
 - Start and stop runs at any point; stats up to the stop are kept.
 - Human-readable axes (10M, 2.4B, 1T), with an optional **normalized view** (% of starting bank) for fair comparison across different bankrolls.
 
