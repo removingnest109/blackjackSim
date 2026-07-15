@@ -16,6 +16,18 @@
                 "isDefault": true
             },
             "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "cmake configure (release)",
+            "type": "shell",
+            "command": "cmake -B build-release -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++"
+        },
+        {
+            "label": "cmake build (release)",
+            "type": "shell",
+            "command": "cmake --build build-release --parallel",
+            "dependsOn": "cmake configure (release)",
+            "problemMatcher": ["$gcc"]
         }
     ]
 }

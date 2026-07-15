@@ -24,6 +24,30 @@
             "externalConsole": false,
             "MIMode": "gdb",
             "preLaunchTask": "cmake build"
+        },
+        {
+            "name": "Run CLI Release (blackjack)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-release/blackjack",
+            "args": ["-v", "-n", "1000000"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "preLaunchTask": "cmake build (release)"
+        },
+        {
+            "name": "Run GUI Release (blackjack_gui)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-release/blackjack_gui",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "preLaunchTask": "cmake build (release)"
         }
     ]
 }
