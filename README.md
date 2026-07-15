@@ -55,7 +55,7 @@ A cross-platform (Windows/Linux) desktop frontend built with [Dear ImGui](https:
 ### Live simulation view
 
 - Every simulation parameter from the CLI, plus a thread-count slider, editable without touching a terminal.
-- **Live bank balance graph** — one line per thread, streamed from the running simulation via lock-free snapshots with effectively zero overhead on the hot loop (tens of millions of hands per second on modern hardware).
+- **Live bank balance graph** — one line per thread, streamed from the running simulation via lock-free snapshots with effectively zero overhead on the hot loop (hundreds of millions of hands per second on modern hardware).
 - Start and stop runs at any point; stats up to the stop are kept.
 - Human-readable axes (10M, 2.4B, 1T), with an optional **normalized view** (% of starting bank) for fair comparison across different bankrolls.
 
