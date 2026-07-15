@@ -15,7 +15,7 @@
 ![2.4 billion hands simulated in 7.7 seconds](screenshots/blackjack.png)
 
 A high-performance Monte Carlo blackjack simulator written in portable C++11.  
-Uses statistical sampling through millions of simulated hands to estimate player outcomes and strategy validity. Supports single-threaded and multithreaded simulations, hi-lo card counting, interactive mode, and detailed statistics.
+Uses statistical sampling through millions of simulated hands to estimate player outcomes and strategy validity. Supports single-threaded and multithreaded simulations, hi-lo card counting, and detailed statistics.
 
 ## Monte Carlo Simulation
 
@@ -36,7 +36,6 @@ The law of large numbers ensures that as the number of simulated hands increases
 - Adjustable starting bank, default bet, and shuffle penetration.
 - Supports dealer hitting on soft 17.
 - Optional card counting with true count betting.
-- Interactive mode for step-by-step gameplay.
 - Multithreading to leverage multiple CPU cores.
 - Tracks detailed statistics including wins, losses, blackjacks, splits, doubles, and expected value.
 - No config files, completely portable and configured by cli arguments
@@ -48,6 +47,19 @@ Build using cmake:
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target blackjack
 ```
+
+## GUI
+
+A cross-platform (Windows/Linux) GUI built with [Dear ImGui](https://github.com/ocornut/imgui) and [ImPlot](https://github.com/epezent/implot). It exposes all simulation parameters, plots live bank balance per thread while the simulation runs, and displays every tracked statistic (plus derived values like win/loss/draw rates, EV, drawdown, and hands per second). Runs can be stopped early.
+
+All GUI dependencies (GLFW, ImGui, ImPlot) are fetched automatically by CMake — no manual installs. On Linux you need OpenGL and X11/Wayland development headers (`libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols` on Debian/Ubuntu); on Windows it builds out of the box with MSVC.
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target blackjack_gui
+./build/blackjack_gui
+```
+
+To build only the CLI, configure with `-DBLACKJACK_GUI=OFF`.
 
 ## Configuration Options
 
@@ -63,7 +75,6 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target blackj
 | `-t`, `--bet <amount>` | Default bet size | 10 |
 | `-p`, `--penetration <0.0-1.0>` | Shuffle penetration before reshuffle | 0.75 |
 | `-s`, `--dealer-hit-soft-17` | Dealer hits on soft 17 | Disabled |
-| `-i`, `--interactive` | Enable interactive mode | Disabled |
 | `-c`, `--card-counting` | Enable card counting | Disabled |
 | `-e`, `--debt` | Allow negative bank (debt) | Disabled |
 | `-m`, `--multithread` | Enable multithreading | Disabled |

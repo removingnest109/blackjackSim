@@ -8,7 +8,6 @@ struct Config {
   unsigned int threads = 1;
   float penetrationBeforeShuffle = 0.75;
   bool dealerHitSoft17 = false;
-  bool isInteractive = false;
   bool cardCounting = false;
   bool verbose = false;
   bool debtAllowed = false;

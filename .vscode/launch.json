@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run CLI (blackjack)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/blackjack",
+            "args": ["-v", "-n", "1000000"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "preLaunchTask": "cmake build"
+        },
+        {
+            "name": "Run GUI (blackjack_gui)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/blackjack_gui",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "preLaunchTask": "cmake build"
+        }
+    ]
+}

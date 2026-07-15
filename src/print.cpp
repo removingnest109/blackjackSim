@@ -62,15 +62,3 @@ void printStats(const Stats &stats) {
   }
   std::cout << "Average EV percentage: " << evPercent * 100 << "%" << std::endl;
 }
-
-void announceIfInteractive(const std::string &message) {
-  if (config.isInteractive)
-    std::cout << message << std::endl;
-}
-
-void printHandState(const std::string &label, const Hand &hand) {
-  std::cout << label << " Hand: ";
-  for (int i = 0; i < hand.cardCount; ++i)
-    std::cout << hand.cards[i] << " ";
-  std::cout << " -> " << hand.value << std::endl;
-}

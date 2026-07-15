@@ -1,6 +1,5 @@
 #include "blackjack.h"
 #include "config.h"
-#include "print.h"
 #include <algorithm>
 
 void drawCard(std::vector<int> &deck, Hand &hand, const bool &visible,
@@ -164,7 +163,6 @@ bool detectBlackjacks(const Hand &handPlayer, const Hand &handDealer,
   if (playerBJ && dealerBJ) {
     stats.runningCount += countTable[hole];
     stats.draw++;
-    announceIfInteractive("Push");
     stats.bank += bet; // return original bet
     return true;
   }
@@ -172,13 +170,11 @@ bool detectBlackjacks(const Hand &handPlayer, const Hand &handDealer,
     stats.runningCount += countTable[hole];
     stats.dealerWins++;
     stats.dealerBlackjacks++;
-    announceIfInteractive("Dealer Blackjack");
     return true;
   }
   if (playerBJ) {
     stats.playerWins++;
     stats.playerBlackjacks++;
-    announceIfInteractive("Player Blackjack");
     stats.bank += static_cast<int64_t>(static_cast<double>(bet) *
                                        2.5); // original bet + 1.5x
     return true;
@@ -194,11 +190,6 @@ void playDealerHand(std::vector<int> &deck, Hand &hand, Stats &stats) {
 }
 
 void resolveHand(const Hand &player, const Hand &dealer, Stats &stats) {
-  if (config.isInteractive) {
-    printHandState("Player", player);
-    printHandState("Dealer", dealer);
-  }
-
   const bool playerBust = player.value > 21;
   const bool dealerBust = dealer.value > 21;
   const bool playerWins =
@@ -209,21 +200,16 @@ void resolveHand(const Hand &player, const Hand &dealer, Stats &stats) {
 
   if (playerBust) {
     ++stats.dealerWins;
-    announceIfInteractive("Player Bust");
   } else if (dealerBust) {
     ++stats.playerWins;
     stats.bank += player.bet * 2;
-    announceIfInteractive("Dealer Bust");
   } else if (playerWins) {
     ++stats.playerWins;
     stats.bank += player.bet * 2;
-    announceIfInteractive("Player Win");
   } else if (dealerWins) {
     ++stats.dealerWins;
-    announceIfInteractive("Dealer Win");
   } else if (push) {
     ++stats.draw;
     stats.bank += player.bet;
-    announceIfInteractive("Push");
   }
 }

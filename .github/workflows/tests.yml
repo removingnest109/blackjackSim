@@ -38,7 +38,7 @@ jobs:
       shell: bash
 
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build-type }}
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} -DBLACKJACK_GUI=OFF
       shell: bash
 
     - name: Build
