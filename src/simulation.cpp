@@ -2,9 +2,7 @@
 
 #include "actions.h"
 #include "config.h"
-#include "interactive.h"
-#include <iomanip>
-#include <iostream>
+#include "monitor.h"
 #include <thread>
 
 void simulatePlayerHands(std::vector<int> &deck, Hand hands[], int &handCount,
@@ -42,16 +40,6 @@ void simulatePlayerHands(std::vector<int> &deck, Hand hands[], int &handCount,
   }
 }
 
-void playPlayerHands(std::vector<int> &deck, Hand hands[], int &handCount,
-                     const Hand &dealer, Stats &stats) {
-  if (config.isInteractive) {
-    std::cout << "Round " << stats.hands << std::endl;
-    interactiveHand(deck, hands, handCount, dealer, stats);
-  } else {
-    simulatePlayerHands(deck, hands, handCount, dealer, stats);
-  }
-}
-
 void turnFull(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng,
               const int64_t &bet, Stats &stats) {
   Hand hands[4];
@@ -66,12 +54,10 @@ void turnFull(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng,
   if (detectBlackjacks(hands[0], dealer, bet, stats))
     return;
 
-  playPlayerHands(deck, hands, handCount, dealer, stats);
+  simulatePlayerHands(deck, hands, handCount, dealer, stats);
   playDealerHand(deck, dealer, stats);
 
   for (int i = 0; i < handCount; ++i) {
-    if (config.isInteractive)
-      std::cout << "Hand " << (i + 1) << std::endl;
     resolveHand(hands[i], dealer, stats);
   }
 }
@@ -83,22 +69,14 @@ void playHand(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng,
   int64_t bet = config.cardCounting
                     ? betFromTrueCount(stats) * config.defaultBetSize
                     : config.defaultBetSize;
-  if (config.isInteractive) {
-    if (config.cardCounting)
-      std::cout << "count (true count): " << stats.runningCount << " ("
-                << std::setprecision(2) << std::fixed << stats.trueCount << ")"
-                << std::endl;
-    std::cout << "bank: $" << stats.bank << std::endl;
-    std::cout << "enter bet: $";
-    std::cin >> bet;
-  }
   if (stats.bank < bet && !config.debtAllowed)
     return;
   ;
   turnFull(deck, dealer, rng, bet, stats);
 }
 
-Stats runSimThread(const uint64_t &seed) {
+Stats runSimThread(const uint64_t &seed, ThreadProbe *probe,
+                   SimMonitor *monitor) {
   Stats local;
   local.bank = config.startingBank;
   std::mt19937 rng(seed);
@@ -108,21 +86,40 @@ Stats runSimThread(const uint64_t &seed) {
 
   Hand dealer;
 
+  const int interval = config.numberHands > kMaxSamples
+                           ? config.numberHands / kMaxSamples
+                           : 1;
+  int sinceProbe = 0;
+
   for (int i = 0; i < config.numberHands; ++i) {
     playHand(deck, dealer, rng, local);
+    if (probe && ++sinceProbe >= interval) {
+      sinceProbe = 0;
+      probe->publish(local);
+      if (monitor &&
+          monitor->stopRequested.load(std::memory_order_relaxed))
+        break;
+    }
   }
+
+  if (probe)
+    probe->publish(local);
 
   return local;
 }
 
-Stats runSim() {
+Stats runSim(SimMonitor *monitor) {
   std::vector<std::thread> workers;
   std::vector<Stats> results(config.threads);
   std::random_device dev;
 
   workers.reserve(config.threads);
   for (unsigned int i = 0; i < config.threads; ++i) {
-    workers.emplace_back([&, i] { results[i] = runSimThread(dev() + i); });
+    ThreadProbe *probe =
+        monitor && i < monitor->probes.size() ? monitor->probes[i].get()
+                                              : nullptr;
+    workers.emplace_back(
+        [&, i, probe] { results[i] = runSimThread(dev() + i, probe, monitor); });
   }
 
   for (auto &t : workers)

@@ -14,7 +14,6 @@ void printHelp() {
          "  -t, --bet <amount>             Default bet size (default 10)\n"
          "  -p, --penetration <0.0-1.0>    Shuffle penetration (default 0.75)\n"
          "  -s, --dealer-hit-soft-17       Dealer hits soft 17\n"
-         "  -i, --interactive              Interactive mode\n"
          "  -c, --card-counting            Enable card counting\n"
          "  -e, --debt                     Enable negative bank\n"
          "  -m, --multithread              Enable multithreading\n";
@@ -33,8 +32,6 @@ void getArgs(const int argc, char **argv) {
         config.verbose = true;
       else if (arg == "--dealer-hit-soft-17")
         config.dealerHitSoft17 = true;
-      else if (arg == "--interactive")
-        config.isInteractive = true;
       else if (arg == "--card-counting")
         config.cardCounting = true;
       else if (arg == "--debt")
@@ -81,9 +78,6 @@ void getArgs(const int argc, char **argv) {
           break;
         case 's':
           config.dealerHitSoft17 = true;
-          break;
-        case 'i':
-          config.isInteractive = true;
           break;
         case 'c':
           config.cardCounting = true;
