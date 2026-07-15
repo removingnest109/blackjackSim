@@ -66,12 +66,16 @@ void playHand(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng,
               Stats &stats) {
   if (config.cardCounting)
     getTrueCount(deck, stats);
-  int64_t bet = config.cardCounting
-                    ? betFromTrueCount(stats) * config.defaultBetSize
-                    : config.defaultBetSize;
+  int64_t baseBet = config.defaultBetSize;
+  if (config.betPercentMode)
+    baseBet = static_cast<int64_t>(static_cast<double>(stats.bank) *
+                                   (config.betPercent / 100.0));
+  int64_t bet =
+      config.cardCounting ? betFromTrueCount(stats) * baseBet : baseBet;
+  if (bet < config.minimumBet)
+    bet = config.minimumBet;
   if (stats.bank < bet && !config.debtAllowed)
     return;
-  ;
   turnFull(deck, dealer, rng, bet, stats);
 }
 

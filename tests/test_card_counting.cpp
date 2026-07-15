@@ -19,6 +19,23 @@ TEST(CardCounting, UsesExpectedThresholds) {
   EXPECT_EQ(betFromTrueCount(s), 16);
 }
 
+TEST(CardCounting, BetCurveIsConfigurable) {
+  config = Config();
+  config.betCurve[0] = 2;
+  config.betCurve[1] = 7;
+  config.betCurve[5] = 50;
+  Stats s;
+
+  s.trueCount = -1.0;
+  EXPECT_EQ(betFromTrueCount(s), 2);
+  s.trueCount = 1.5;
+  EXPECT_EQ(betFromTrueCount(s), 7);
+  s.trueCount = 9.0;
+  EXPECT_EQ(betFromTrueCount(s), 50);
+
+  config = Config();
+}
+
 TEST(CardCounting, HiLoCountsCardsCorrectly) {
   std::vector<int> d;
   Hand h;

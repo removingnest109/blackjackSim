@@ -19,7 +19,12 @@ void printGlobalVars() {
   std::cout << "Number of hands per thread: " << config.numberHands
             << std::endl;
   std::cout << "Starting bank: " << config.startingBank << std::endl;
-  std::cout << "Default bet size: " << config.defaultBetSize << std::endl;
+  if (config.betPercentMode)
+    std::cout << "Bet size: " << config.betPercent << "% of current bank"
+              << std::endl;
+  else
+    std::cout << "Default bet size: " << config.defaultBetSize << std::endl;
+  std::cout << "Minimum bet: " << config.minimumBet << std::endl;
   std::cout << "Number of decks: " << config.numberDecks << std::endl;
   std::cout << "Penetration before shuffle: "
             << config.penetrationBeforeShuffle * 100 << "%" << std::endl;

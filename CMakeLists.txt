@@ -53,7 +53,17 @@ if (BLACKJACK_GUI)
             URL https://github.com/epezent/implot/archive/refs/tags/v0.16.zip
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     )
-    FetchContent_MakeAvailable(glfw imgui implot)
+    FetchContent_Declare(
+            nlohmann_json
+            URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_Declare(
+            stb
+            URL https://github.com/nothings/stb/archive/5736b15f7ea0ffb08dd38af21067c314d6a3aae9.zip
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(glfw imgui implot nlohmann_json stb)
 
     find_package(OpenGL REQUIRED)
 
@@ -64,6 +74,7 @@ if (BLACKJACK_GUI)
             ${imgui_SOURCE_DIR}/imgui_widgets.cpp
             ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
             ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+            ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
             ${implot_SOURCE_DIR}/implot.cpp
             ${implot_SOURCE_DIR}/implot_items.cpp
     )
@@ -75,7 +86,9 @@ if (BLACKJACK_GUI)
     target_link_libraries(imgui_lib PUBLIC glfw OpenGL::GL)
 
     add_executable(blackjack_gui src/gui/main_gui.cpp)
-    target_link_libraries(blackjack_gui PRIVATE blackjack_core imgui_lib)
+    target_include_directories(blackjack_gui PRIVATE ${stb_SOURCE_DIR})
+    target_link_libraries(blackjack_gui PRIVATE blackjack_core imgui_lib
+            nlohmann_json::nlohmann_json)
     if (WIN32)
         target_link_libraries(blackjack_gui PRIVATE gdi32)
     endif ()
