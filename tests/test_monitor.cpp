@@ -39,6 +39,53 @@ TEST(Monitor, StopRequestEndsRunEarly) {
             static_cast<int64_t>(config.numberHands) * config.threads);
 }
 
+TEST(BetPercent, PercentModeScalesBetsWithBank) {
+  config = Config();
+  config.numberHands = 100000;
+  config.threads = 1;
+  config.betPercentMode = true;
+  config.betPercent = 1.0f; // 1% of current bank
+
+  const Stats result = runSim(nullptr);
+
+  EXPECT_GT(result.hands, 0);
+  EXPECT_GT(result.totalBet, 0);
+  // Average bet should be near 1% of the average bank, far above the
+  // raw default bet of 10 for a 100,000 starting bank.
+  const double avgBet =
+      static_cast<double>(result.totalBet) / static_cast<double>(result.hands);
+  EXPECT_GT(avgBet, 100.0);
+}
+
+TEST(BetPercent, MinimumBetIsOne) {
+  config = Config();
+  config.numberHands = 1000;
+  config.threads = 1;
+  config.startingBank = 100;
+  config.betPercentMode = true;
+  config.betPercent = 0.01f; // 0.01% of 100 rounds to 0 -> clamps to 1
+
+  const Stats result = runSim(nullptr);
+
+  EXPECT_GT(result.hands, 0);
+  EXPECT_GE(result.totalBet, result.hands); // every bet at least 1
+}
+
+TEST(BetPercent, MinimumBetFloorsFinalBet) {
+  config = Config();
+  config.numberHands = 1000;
+  config.threads = 1;
+  config.betPercentMode = true;
+  config.betPercent = 0.001f; // would round to 0 on a 100,000 bank
+  config.minimumBet = 50;
+
+  const Stats result = runSim(nullptr);
+
+  EXPECT_GT(result.hands, 0);
+  // Every initial bet is at least 50 (splits/doubles only add more).
+  EXPECT_GE(result.totalBet, result.hands * 50);
+}
+
 TEST(Monitor, NullMonitorLeavesSimUnchanged) {
   config = Config();
   config.numberHands = 10000;

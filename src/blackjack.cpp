@@ -138,16 +138,16 @@ void getTrueCount(const std::vector<int> &deck, Stats &stats) {
 
 int64_t betFromTrueCount(const Stats &stats) {
   if (stats.trueCount <= 0)
-    return 1;
+    return config.betCurve[0];
   if (stats.trueCount <= 2)
-    return 3;
+    return config.betCurve[1];
   if (stats.trueCount <= 3)
-    return 6;
+    return config.betCurve[2];
   if (stats.trueCount <= 4)
-    return 10;
+    return config.betCurve[3];
   if (stats.trueCount <= 5)
-    return 14;
-  return 16;
+    return config.betCurve[4];
+  return config.betCurve[5];
 }
 
 bool isBlackjack(const Hand &hand) {

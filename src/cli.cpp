@@ -12,6 +12,10 @@ void printHelp() {
          "  -d, --decks <num>              Number of decks (default 6)\n"
          "  -b, --bank <amount>            Starting bank (default 100000)\n"
          "  -t, --bet <amount>             Default bet size (default 10)\n"
+         "  -r, --bet-percent <0.0-100.0>  Bet a percentage of current bank\n"
+         "                                 instead of a raw bet size\n"
+         "  -i, --min-bet <amount>         Minimum bet, floors the final bet\n"
+         "                                 in all modes (default 1)\n"
          "  -p, --penetration <0.0-1.0>    Shuffle penetration (default 0.75)\n"
          "  -s, --dealer-hit-soft-17       Dealer hits soft 17\n"
          "  -c, --card-counting            Enable card counting\n"
@@ -40,7 +44,8 @@ void getArgs(const int argc, char **argv) {
         config.multiThread = true;
 
       else if (arg == "--hands" || arg == "--decks" || arg == "--bank" ||
-               arg == "--bet" || arg == "--penetration") {
+               arg == "--bet" || arg == "--penetration" ||
+               arg == "--bet-percent" || arg == "--min-bet") {
         if (i + 1 >= argc) {
           std::cerr << "Missing value for " << arg << "\n";
           std::exit(1);
@@ -57,6 +62,11 @@ void getArgs(const int argc, char **argv) {
             config.defaultBetSize = std::stoi(value);
           else if (arg == "--penetration")
             config.penetrationBeforeShuffle = std::stof(value);
+          else if (arg == "--bet-percent") {
+            config.betPercent = std::stof(value);
+            config.betPercentMode = true;
+          } else if (arg == "--min-bet")
+            config.minimumBet = std::stoi(value);
         } catch (...) {
           std::cerr << "Invalid value for " << arg << "\n";
           std::exit(1);
@@ -93,7 +103,9 @@ void getArgs(const int argc, char **argv) {
         case 'd':
         case 'b':
         case 't':
-        case 'p': {
+        case 'p':
+        case 'r':
+        case 'i': {
           if (j + 1 != arg.size()) {
             std::cerr << "Option -" << flag << " requires a separate value\n";
             std::exit(1);
@@ -114,6 +126,11 @@ void getArgs(const int argc, char **argv) {
               config.defaultBetSize = std::stoi(value);
             else if (flag == 'p')
               config.penetrationBeforeShuffle = std::stof(value);
+            else if (flag == 'r') {
+              config.betPercent = std::stof(value);
+              config.betPercentMode = true;
+            } else if (flag == 'i')
+              config.minimumBet = std::stoi(value);
           } catch (...) {
             std::cerr << "Invalid value for -" << flag << "\n";
             std::exit(1);
