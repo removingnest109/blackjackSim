@@ -19,6 +19,8 @@ on:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       release_tag: ${{ steps.vars.outputs.release_tag }}
       release_name: ${{ steps.vars.outputs.release_name }}
@@ -61,6 +63,8 @@ jobs:
   build:
     needs: prepare
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -80,7 +84,7 @@ jobs:
 
       - name: Setup build environment (Windows)
         if: runner.os == 'Windows'
-        uses: microsoft/setup-msbuild@v1
+        uses: microsoft/setup-msbuild@v3
 
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
