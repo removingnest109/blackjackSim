@@ -12,9 +12,6 @@ on:
       target_commitish:
         description: Branch or commit to tag when creating a new tag
         required: false
-  push:
-    tags:
-      - "v*"
 
 jobs:
   prepare:
