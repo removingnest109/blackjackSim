@@ -99,7 +99,8 @@ if (BLACKJACK_GUI)
     target_include_directories(blackjack_gui PRIVATE ${stb_SOURCE_DIR}
             ${portable_file_dialogs_SOURCE_DIR})
     target_compile_definitions(blackjack_gui PRIVATE
-            BJ_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+            BJ_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
+            $<$<BOOL:${WIN32}>:NOMINMAX>)
     target_link_libraries(blackjack_gui PRIVATE blackjack_core imgui_lib
             nlohmann_json::nlohmann_json)
     if (WIN32)
