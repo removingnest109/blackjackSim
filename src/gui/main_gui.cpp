@@ -86,7 +86,7 @@ struct GuiParams {
   bool dealerHitSoft17 = false;
   bool cardCounting = false;
   bool debtAllowed = false;
-  int betCurve[kBetCurveSize] = {1, 3, 6, 10, 14, 16};
+  int betCurve[kBetCurveSize] = {1, 2, 3, 4, 5, 6};
 };
 
 struct RunRecord {
