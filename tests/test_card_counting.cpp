@@ -7,16 +7,16 @@ TEST(CardCounting, UsesExpectedThresholds) {
   Stats s;
 
   s.trueCount = -1.0;
-  EXPECT_EQ(betFromTrueCount(s), 1);
+  EXPECT_EQ(betFromTrueCount(s), config.betCurve[0]);
 
   s.trueCount = 2.0;
-  EXPECT_EQ(betFromTrueCount(s), 3);
+  EXPECT_EQ(betFromTrueCount(s), config.betCurve[1]);
 
   s.trueCount = 3.5;
-  EXPECT_EQ(betFromTrueCount(s), 10);
+  EXPECT_EQ(betFromTrueCount(s), config.betCurve[3]);
 
   s.trueCount = 6.0;
-  EXPECT_EQ(betFromTrueCount(s), 16);
+  EXPECT_EQ(betFromTrueCount(s), config.betCurve[5]);
 }
 
 TEST(CardCounting, BetCurveIsConfigurable) {
