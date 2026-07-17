@@ -918,6 +918,36 @@ void glfwErrorCallback(int error, const char *description) {
   std::fprintf(stderr, "GLFW error %d: %s\n", error, description);
 }
 
+// Generate RGBA pixel data for a simple diamond-shaped icon at the given size.
+// Uses the app's accent colour on a dark background — no external file needed.
+std::vector<unsigned char> makeIconPixels(int size) {
+  std::vector<unsigned char> pixels(static_cast<size_t>(size * size * 4));
+  const float cx = (size - 1) * 0.5f;
+  const float cy = (size - 1) * 0.5f;
+  // Outer diamond fills ~76 % of the tile; inner cutout adds a border effect.
+  const float outer = size * 0.38f;
+  const float inner = size * 0.22f;
+  for (int y = 0; y < size; ++y) {
+    for (int x = 0; x < size; ++x) {
+      const float dx = std::abs(static_cast<float>(x) - cx);
+      const float dy = std::abs(static_cast<float>(y) - cy);
+      const float dist = dx + dy;
+      unsigned char *p = &pixels[static_cast<size_t>((y * size + x) * 4)];
+      if (dist <= outer && dist > inner) {
+        // Accent ring — muted slate blue
+        p[0] = 124; p[1] = 146; p[2] = 173; p[3] = 255;
+      } else if (dist <= inner) {
+        // Centre fill — slightly brighter
+        p[0] = 158; p[1] = 178; p[2] = 202; p[3] = 255;
+      } else {
+        // Background — dark panel colour
+        p[0] = 14; p[1] = 17; p[2] = 22; p[3] = 255;
+      }
+    }
+  }
+  return pixels;
+}
+
 // ---------------------------------------------------------------------------
 // Visual theme: a modern, clean dark look that steps away from the default
 // ImGui palette. Deep neutral panels, soft rounded corners, generous spacing,
@@ -1073,6 +1103,15 @@ int main(int, char **) {
   if (!window) {
     glfwTerminate();
     return 1;
+  }
+  {
+    // Set the window / taskbar icon.
+    auto px32 = makeIconPixels(32);
+    auto px16 = makeIconPixels(16);
+    GLFWimage icons[2];
+    icons[0] = {32, 32, px32.data()};
+    icons[1] = {16, 16, px16.data()};
+    glfwSetWindowIcon(window, 2, icons);
   }
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1);
