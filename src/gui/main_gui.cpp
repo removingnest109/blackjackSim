@@ -17,6 +17,8 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
+#include "portable-file-dialogs.h"
+
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -31,6 +33,45 @@
 namespace {
 
 using Clock = std::chrono::steady_clock;
+
+// ---------------------------------------------------------------------------
+// Shared "terminal" palette. A cool near-black surface stack, one muted slate
+// accent reserved for interactive chrome and the live state, and green/red used
+// only as financial signal on signed numbers. Kept in one place so the widget
+// theme and the stats readout agree on every colour.
+// ---------------------------------------------------------------------------
+
+ImVec4 rgb(int r, int g, int b, float a = 1.0f) {
+  return ImVec4(r / 255.0f, g / 255.0f, b / 255.0f, a);
+}
+
+// Scale RGB while preserving alpha — used to derive darker line variants.
+ImVec4 shade(const ImVec4 &c, float f) {
+  return ImVec4(c.x * f, c.y * f, c.z * f, c.w);
+}
+
+namespace pal {
+const ImVec4 accent = rgb(124, 146, 173);       // muted slate blue
+const ImVec4 accentBright = rgb(158, 178, 202); // accent, hovered
+const ImVec4 accentDim = rgb(88, 105, 130);     // accent, pressed
+const ImVec4 accentSoft = rgb(124, 146, 173, 0.16f);
+const ImVec4 pos = rgb(63, 185, 80);   // profit / positive
+const ImVec4 neg = rgb(242, 109, 109); // loss / drawdown / negative
+const ImVec4 text = rgb(201, 211, 224);
+const ImVec4 textDim = rgb(108, 119, 137);
+const ImVec4 bgWindow = rgb(14, 17, 22);
+const ImVec4 bgChild = rgb(20, 25, 34);
+const ImVec4 bgFrame = rgb(27, 34, 48);
+const ImVec4 bgFrameHover = rgb(35, 44, 60);
+const ImVec4 bgFrameActive = rgb(44, 55, 73);
+const ImVec4 border = rgb(255, 255, 255, 0.07f);
+} // namespace pal
+
+// Fonts: Plex Sans for UI text, Plex Sans SemiBold for section headers, and
+// Plex Mono for every numeric readout so figures line up in columns.
+ImFont *gFontUI = nullptr;
+ImFont *gFontHead = nullptr;
+ImFont *gFontMono = nullptr;
 
 struct GuiParams {
   int hands = 10000000;
@@ -80,6 +121,11 @@ struct AppState {
   std::string ioStatus;
   bool wantPlotExport = false;
   ImVec2 plotMin, plotMax;
+
+  // Left column: two collapsible sections with a draggable height split.
+  float paramsPanelH = 360.0f;
+  bool paramsOpen = true;
+  bool runsOpen = true;
 
   std::unique_ptr<SimMonitor> monitor;
   std::future<Stats> future;
@@ -333,6 +379,7 @@ void pollSim(AppState &s) {
     rec.stats = s.result;
     rec.elapsed = std::chrono::duration<double>(s.endTime - s.startTime).count();
     rec.stopped = s.wasStopped;
+    rec.showAvg = true; // show the cross-thread average by default
     rec.color = ImPlot::GetColormapColor(rec.id - 1);
     rec.avgColor = rec.color;
     size_t n = s.xs.empty() ? 0 : s.xs[0].size();
@@ -377,10 +424,14 @@ std::string fmtDouble(double v, const char *suffix = "") {
   return buf;
 }
 
-void drawParamsPanel(AppState &s) {
-  ImGui::BeginChild("params", ImVec2(280, 0), ImGuiChildFlags_Border);
-  ImGui::SeparatorText("Parameters");
+// Uppercase, semibold section label — reads like a terminal panel heading.
+void sectionHeader(const char *label) {
+  ImGui::PushFont(gFontHead);
+  ImGui::SeparatorText(label);
+  ImGui::PopFont();
+}
 
+void drawParamsContent(AppState &s) {
   ImGui::BeginDisabled(s.running);
   ImGui::PushItemWidth(-FLT_MIN);
 
@@ -427,23 +478,38 @@ void drawParamsPanel(AppState &s) {
   ImGui::Checkbox("Card counting", &s.params.cardCounting);
 
   if (s.params.cardCounting) {
-    ImGui::TextDisabled("Bet multiplier by true count");
-    static const char *bucketLabels[kBetCurveSize] = {"<=0", "<=2", "<=3",
-                                                      "<=4", "<=5", ">5"};
-    for (int i = 0; i < kBetCurveSize; ++i) {
-      ImGui::SetNextItemWidth(64);
-      ImGui::InputInt(bucketLabels[i], &s.params.betCurve[i], 0, 0);
-      s.params.betCurve[i] = std::max(1, s.params.betCurve[i]);
+    if (ImGui::TreeNodeEx("Bet multiplier by true count",
+                          ImGuiTreeNodeFlags_DefaultOpen |
+                              ImGuiTreeNodeFlags_SpanAvailWidth)) {
+      static const char *bucketLabels[kBetCurveSize] = {"<=0", "<=2", "<=3",
+                                                        "<=4", "<=5", ">5"};
+      for (int i = 0; i < kBetCurveSize; ++i) {
+        ImGui::SetNextItemWidth(64);
+        ImGui::InputInt(bucketLabels[i], &s.params.betCurve[i], 0, 0);
+        s.params.betCurve[i] = std::max(1, s.params.betCurve[i]);
+      }
+      ImGui::TreePop();
     }
   }
 
   ImGui::Checkbox("Allow debt (negative bank)", &s.params.debtAllowed);
 
   ImGui::PopItemWidth();
-  ImGui::Spacing();
+  ImGui::EndDisabled();
+}
 
-  if (ImGui::Button("Run", ImVec2(-FLT_MIN, 0)))
+void drawRunsContent(AppState &s) {
+  // Run controls sit at the top of this section.
+  ImGui::BeginDisabled(s.running);
+  ImGui::PushStyleColor(ImGuiCol_Button, pal::accent);
+  ImGui::PushStyleColor(ImGuiCol_ButtonHovered, pal::accentBright);
+  ImGui::PushStyleColor(ImGuiCol_ButtonActive, pal::accentDim);
+  ImGui::PushStyleColor(ImGuiCol_Text, rgb(16, 19, 25));
+  ImGui::PushFont(gFontHead);
+  if (ImGui::Button("RUN", ImVec2(-FLT_MIN, 0)))
     startRun(s);
+  ImGui::PopFont();
+  ImGui::PopStyleColor(4);
   ImGui::EndDisabled();
 
   ImGui::BeginDisabled(!s.running);
@@ -454,14 +520,30 @@ void drawParamsPanel(AppState &s) {
   ImGui::EndDisabled();
 
   ImGui::Spacing();
-  if (s.running)
-    ImGui::TextColored(ImVec4(0.3f, 0.8f, 0.4f, 1.0f), "Running...");
-  else if (s.haveResult)
-    ImGui::TextDisabled(s.wasStopped ? "Stopped early" : "Completed");
-  else
-    ImGui::TextDisabled("Idle");
+  {
+    // Status line with a small state LED.
+    const ImVec4 led = s.running ? pal::accent
+                       : s.haveResult
+                           ? (s.wasStopped ? pal::neg : pal::pos)
+                           : pal::textDim;
+    const char *label = s.running ? "RUNNING"
+                        : s.haveResult ? (s.wasStopped ? "STOPPED EARLY"
+                                                       : "COMPLETED")
+                                       : "IDLE";
+    const ImVec2 p = ImGui::GetCursorScreenPos();
+    const float cy = p.y + ImGui::GetTextLineHeight() * 0.5f;
+    ImGui::GetWindowDrawList()->AddCircleFilled(
+        ImVec2(p.x + 4.0f, cy), 4.0f, ImGui::ColorConvertFloat4ToU32(led));
+    ImGui::Dummy(ImVec2(14.0f, 0.0f));
+    ImGui::SameLine();
+    ImGui::PushFont(gFontHead);
+    ImGui::TextColored(led, "%s", label);
+    ImGui::PopFont();
+  }
+  ImGui::Spacing();
+  ImGui::Separator();
+  ImGui::Spacing();
 
-  ImGui::SeparatorText("Runs");
   int removeIdx = -1;
   for (size_t r = 0; r < s.history.size(); ++r) {
     RunRecord &rec = s.history[r];
@@ -479,10 +561,6 @@ void drawParamsPanel(AppState &s) {
     ImGui::SameLine();
     ImGui::Checkbox("avg", &rec.showAvg);
     ImGui::SameLine();
-    ImGui::ColorEdit3("##avgcolor", &rec.avgColor.x,
-                      ImGuiColorEditFlags_NoInputs |
-                          ImGuiColorEditFlags_NoLabel);
-    ImGui::SameLine();
     if (ImGui::SmallButton("x"))
       removeIdx = static_cast<int>(r);
     ImGui::PopID();
@@ -493,17 +571,96 @@ void drawParamsPanel(AppState &s) {
       ImGui::Button("Clear runs", ImVec2(-FLT_MIN, 0)))
     s.history.clear();
 
-  ImGui::SetNextItemWidth(-FLT_MIN);
-  ImGui::InputText("##iopath", &s.ioPath);
   ImGui::BeginDisabled(s.history.empty());
-  if (ImGui::Button("Export runs", ImVec2(-FLT_MIN, 0)))
-    s.ioStatus = exportRuns(s);
+  if (ImGui::Button("Export runs", ImVec2(-FLT_MIN, 0))) {
+    const std::string dest =
+        pfd::save_file("Export runs", s.ioPath,
+                       {"JSON files (*.json)", "*.json", "All files", "*"})
+            .result();
+    if (!dest.empty()) {
+      s.ioPath = dest;
+      s.ioStatus = exportRuns(s);
+    }
+  }
   ImGui::EndDisabled();
-  if (ImGui::Button("Import runs", ImVec2(-FLT_MIN, 0)))
-    s.ioStatus = importRuns(s);
+  if (ImGui::Button("Import runs", ImVec2(-FLT_MIN, 0))) {
+    const std::vector<std::string> sel =
+        pfd::open_file("Import runs", s.ioPath,
+                       {"JSON files (*.json)", "*.json", "All files", "*"})
+            .result();
+    if (!sel.empty()) {
+      s.ioPath = sel.front();
+      s.ioStatus = importRuns(s);
+    }
+  }
   if (!s.ioStatus.empty())
     ImGui::TextWrapped("%s", s.ioStatus.c_str());
+}
 
+// Left column: PARAMETERS and RUNS as two collapsible sections whose shared
+// border can be dragged to re-balance their heights.
+void drawLeftColumn(AppState &s, float width) {
+  ImGui::BeginChild("left", ImVec2(width, 0), false);
+  const ImGuiStyle &style = ImGui::GetStyle();
+  const float headerReserve = ImGui::GetFrameHeight() + style.ItemSpacing.y;
+  const float splitterH = 8.0f;
+  const float minBody = 64.0f;
+
+  ImGui::PushFont(gFontHead);
+  const bool paramsOpen =
+      ImGui::CollapsingHeader("PARAMETERS", ImGuiTreeNodeFlags_DefaultOpen);
+  ImGui::PopFont();
+
+  // Space available for the two bodies once the run header (and, when both are
+  // open, the splitter) is accounted for.
+  const bool bothOpen = paramsOpen && s.runsOpen;
+  float bodyRegion = ImGui::GetContentRegionAvail().y - headerReserve;
+  if (bothOpen)
+    bodyRegion -= splitterH + style.ItemSpacing.y;
+  bodyRegion = std::max(bodyRegion, minBody * 2.0f);
+
+  if (paramsOpen) {
+    const float h = bothOpen ? std::min(std::max(s.paramsPanelH, minBody),
+                                        bodyRegion - minBody)
+                             : bodyRegion;
+    ImGui::BeginChild("paramsBody", ImVec2(0, h), ImGuiChildFlags_Border);
+    drawParamsContent(s);
+    ImGui::EndChild();
+  }
+
+  if (bothOpen) {
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, pal::accentSoft);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, pal::accentSoft);
+    ImGui::Button("##split", ImVec2(-1.0f, splitterH));
+    ImGui::PopStyleColor(3);
+    if (ImGui::IsItemActive())
+      s.paramsPanelH += ImGui::GetIO().MouseDelta.y;
+    if (ImGui::IsItemHovered() || ImGui::IsItemActive())
+      ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+    // Faint centre grip so the divider reads as draggable.
+    const ImVec2 mn = ImGui::GetItemRectMin();
+    const ImVec2 mx = ImGui::GetItemRectMax();
+    const float cy = (mn.y + mx.y) * 0.5f;
+    ImGui::GetWindowDrawList()->AddLine(
+        ImVec2(mn.x + 10.0f, cy), ImVec2(mx.x - 10.0f, cy),
+        ImGui::ColorConvertFloat4ToU32(pal::border), 1.0f);
+    s.paramsPanelH = std::min(std::max(s.paramsPanelH, minBody),
+                              bodyRegion - minBody);
+  }
+
+  ImGui::PushFont(gFontHead);
+  const bool runsOpen =
+      ImGui::CollapsingHeader("RUNS", ImGuiTreeNodeFlags_DefaultOpen);
+  ImGui::PopFont();
+  if (runsOpen) {
+    ImGui::BeginChild("runsBody", ImVec2(0, 0), ImGuiChildFlags_Border);
+    drawRunsContent(s);
+    ImGui::EndChild();
+  }
+
+  s.paramsOpen = paramsOpen;
+  s.runsOpen = runsOpen;
   ImGui::EndChild();
 }
 
@@ -537,11 +694,16 @@ void plotSeries(const char *label, const std::vector<double> &x,
 void drawPlot(AppState &s, float height) {
   ImGui::Checkbox("Normalize (% of starting bank)", &s.normalize);
   ImGui::SameLine();
-  ImGui::SetNextItemWidth(160);
-  ImGui::InputText("##pngpath", &s.pngPath);
-  ImGui::SameLine();
-  if (ImGui::Button("Export PNG"))
-    s.wantPlotExport = true;
+  if (ImGui::Button("Export PNG")) {
+    const std::string dest =
+        pfd::save_file("Export plot", s.pngPath,
+                       {"PNG image (*.png)", "*.png", "All files", "*"})
+            .result();
+    if (!dest.empty()) {
+      s.pngPath = dest;
+      s.wantPlotExport = true;
+    }
+  }
   if (ImPlot::BeginPlot("Bank balance", ImVec2(-1, height))) {
     ImPlot::SetupAxes("hands played",
                       s.normalize ? "% of starting bank" : "bank",
@@ -553,14 +715,17 @@ void drawPlot(AppState &s, float height) {
     for (size_t r = 0; r < s.history.size(); ++r) {
       RunRecord &rec = s.history[r];
       if (rec.visible) {
+        // Individual threads render as a dimmed variant of the run colour;
+        // the average (below) uses the full-strength colour so it reads on top.
+        const ImVec4 threadColor = shade(rec.color, 0.55f);
         for (size_t t = 0; t < rec.xs.size(); ++t) {
-          ImPlot::SetNextLineStyle(rec.color);
+          ImPlot::SetNextLineStyle(threadColor);
           plotSeries(rec.label.c_str(), rec.xs[t], rec.ys[t], rec.startBank,
                      s.normalize);
         }
       }
       if (rec.showAvg) {
-        ImPlot::SetNextLineStyle(rec.avgColor, 3.0f);
+        ImPlot::SetNextLineStyle(rec.color, 3.0f);
         plotSeries((rec.label + " avg").c_str(), rec.avgX, rec.avgY,
                    rec.startBank, s.normalize);
       }
@@ -615,14 +780,20 @@ void drawStats(AppState &s, float height) {
   }
 
   ImGui::BeginChild("stats", ImVec2(0, height), ImGuiChildFlags_Border);
-  ImGui::SeparatorText(s.running ? "Live statistics" : "Results");
+  sectionHeader(s.running ? "LIVE" : "RESULTS");
 
   if (ImGui::BeginTable("statstable", kStatPairsPerRow * 2,
                         ImGuiTableFlags_SizingStretchProp)) {
+    // color == nullptr renders in the default text colour; profit-derived
+    // figures carry a green/red tint by sign, drawdown always reads as loss.
     struct Item {
       const char *label;
       std::string value;
+      const ImVec4 *color;
+      Item(const char *l, std::string v, const ImVec4 *c = nullptr)
+          : label(l), value(std::move(v)), color(c) {}
     };
+    const ImVec4 *profitCol = profit >= 0 ? &pal::pos : &pal::neg;
     std::vector<Item> items;
     items.push_back({"Hands played", fmtInt(st.hands)});
     items.push_back({"Total bet", fmtInt(st.totalBet)});
@@ -645,14 +816,16 @@ void drawStats(AppState &s, float height) {
     items.push_back({"Total bank", fmtInt(st.bank)});
     items.push_back(
         {"Avg player bank", fmtDouble(divide(st.bank, threads))});
-    items.push_back({"Total profit", fmtInt(profit)});
-    items.push_back({"Avg profit", fmtDouble(divide(profit, threads))});
+    items.push_back({"Total profit", fmtInt(profit), profitCol});
     items.push_back(
-        {"EV per hand", fmtDouble(divide(profit, st.hands), " $")});
-    items.push_back({"EV percentage", fmtPct(divide(profit, st.totalBet))});
+        {"Avg profit", fmtDouble(divide(profit, threads)), profitCol});
+    items.push_back(
+        {"EV per hand", fmtDouble(divide(profit, st.hands), " $"), profitCol});
+    items.push_back(
+        {"EV percentage", fmtPct(divide(profit, st.totalBet)), profitCol});
     items.push_back(
         {"Avg bet", fmtDouble(divide(st.totalBet, st.hands))});
-    items.push_back({"Worst drawdown", fmtDouble(worstDrawdown)});
+    items.push_back({"Worst drawdown", fmtDouble(worstDrawdown), &pal::neg});
     items.push_back({"Elapsed", fmtDouble(elapsed, " s")});
     items.push_back(
         {"Hands per second",
@@ -663,10 +836,16 @@ void drawStats(AppState &s, float height) {
     for (size_t i = 0; i < items.size(); i += kStatPairsPerRow) {
       ImGui::TableNextRow();
       for (size_t p = 0; p < kStatPairsPerRow && i + p < items.size(); ++p) {
+        const Item &it = items[i + p];
         ImGui::TableSetColumnIndex(static_cast<int>(p * 2));
-        ImGui::TextDisabled("%s", items[i + p].label);
+        ImGui::TextDisabled("%s", it.label);
         ImGui::TableSetColumnIndex(static_cast<int>(p * 2 + 1));
-        ImGui::TextUnformatted(items[i + p].value.c_str());
+        ImGui::PushFont(gFontMono);
+        if (it.color)
+          ImGui::TextColored(*it.color, "%s", it.value.c_str());
+        else
+          ImGui::TextUnformatted(it.value.c_str());
+        ImGui::PopFont();
       }
     }
     ImGui::EndTable();
@@ -683,7 +862,7 @@ void drawFrame(AppState &s, int displayW, int displayH) {
                    ImGuiWindowFlags_NoBringToFrontOnFocus |
                    ImGuiWindowFlags_NoSavedSettings);
 
-  drawParamsPanel(s);
+  drawLeftColumn(s, 280.0f);
   ImGui::SameLine();
 
   ImGui::BeginGroup();
@@ -701,6 +880,147 @@ void drawFrame(AppState &s, int displayW, int displayH) {
 
 void glfwErrorCallback(int error, const char *description) {
   std::fprintf(stderr, "GLFW error %d: %s\n", error, description);
+}
+
+// ---------------------------------------------------------------------------
+// Visual theme: a modern, clean dark look that steps away from the default
+// ImGui palette. Deep neutral panels, soft rounded corners, generous spacing,
+// and a single teal accent used consistently across interactive widgets.
+// ---------------------------------------------------------------------------
+
+void setupTheme() {
+  ImGuiStyle &style = ImGui::GetStyle();
+
+  // Shape: soft rounding and breathing room.
+  style.WindowRounding = 8.0f;
+  style.ChildRounding = 8.0f;
+  style.FrameRounding = 6.0f;
+  style.PopupRounding = 6.0f;
+  style.GrabRounding = 6.0f;
+  style.TabRounding = 6.0f;
+  style.ScrollbarRounding = 8.0f;
+
+  style.WindowBorderSize = 0.0f;
+  style.ChildBorderSize = 1.0f;
+  style.FrameBorderSize = 0.0f;
+  style.PopupBorderSize = 1.0f;
+
+  style.WindowPadding = ImVec2(10, 10);
+  style.FramePadding = ImVec2(8, 4);
+  style.CellPadding = ImVec2(6, 3);
+  style.ItemSpacing = ImVec2(8, 5);
+  style.ItemInnerSpacing = ImVec2(6, 4);
+  style.ScrollbarSize = 11.0f;
+  style.GrabMinSize = 11.0f;
+  style.SeparatorTextBorderSize = 2.0f;
+  style.SeparatorTextPadding = ImVec2(14, 4);
+
+  // Palette (shared with the stats readout via pal::).
+  const ImVec4 accent = pal::accent;
+  const ImVec4 accentDim = pal::accentDim;
+  const ImVec4 accentSoft = pal::accentSoft;
+  const ImVec4 text = pal::text;
+  const ImVec4 textDim = pal::textDim;
+  const ImVec4 bgWindow = pal::bgWindow;
+  const ImVec4 bgChild = pal::bgChild;
+  const ImVec4 bgFrame = pal::bgFrame;
+  const ImVec4 bgFrameHover = pal::bgFrameHover;
+  const ImVec4 bgFrameActive = pal::bgFrameActive;
+  const ImVec4 border = pal::border;
+
+  ImVec4 *c = style.Colors;
+  c[ImGuiCol_Text] = text;
+  c[ImGuiCol_TextDisabled] = textDim;
+  c[ImGuiCol_WindowBg] = bgWindow;
+  c[ImGuiCol_ChildBg] = bgChild;
+  c[ImGuiCol_PopupBg] = rgb(18, 22, 30, 0.98f);
+  c[ImGuiCol_Border] = border;
+  c[ImGuiCol_BorderShadow] = ImVec4(0, 0, 0, 0);
+  c[ImGuiCol_FrameBg] = bgFrame;
+  c[ImGuiCol_FrameBgHovered] = bgFrameHover;
+  c[ImGuiCol_FrameBgActive] = bgFrameActive;
+  c[ImGuiCol_TitleBg] = bgWindow;
+  c[ImGuiCol_TitleBgActive] = bgWindow;
+  c[ImGuiCol_TitleBgCollapsed] = bgWindow;
+  c[ImGuiCol_MenuBarBg] = bgChild;
+  c[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
+  c[ImGuiCol_ScrollbarGrab] = rgb(60, 66, 78);
+  c[ImGuiCol_ScrollbarGrabHovered] = rgb(76, 84, 98);
+  c[ImGuiCol_ScrollbarGrabActive] = accentDim;
+  c[ImGuiCol_CheckMark] = accent;
+  c[ImGuiCol_SliderGrab] = accent;
+  c[ImGuiCol_SliderGrabActive] = accentDim;
+  c[ImGuiCol_Button] = bgFrame;
+  c[ImGuiCol_ButtonHovered] = bgFrameHover;
+  c[ImGuiCol_ButtonActive] = accentDim;
+  c[ImGuiCol_Header] = accentSoft;
+  c[ImGuiCol_HeaderHovered] = rgb(124, 146, 173, 0.28f);
+  c[ImGuiCol_HeaderActive] = rgb(124, 146, 173, 0.38f);
+  c[ImGuiCol_Separator] = border;
+  c[ImGuiCol_SeparatorHovered] = accentSoft;
+  c[ImGuiCol_SeparatorActive] = accent;
+  c[ImGuiCol_ResizeGrip] = rgb(60, 66, 78);
+  c[ImGuiCol_ResizeGripHovered] = accentSoft;
+  c[ImGuiCol_ResizeGripActive] = accent;
+  c[ImGuiCol_Tab] = bgFrame;
+  c[ImGuiCol_TabHovered] = accentSoft;
+  c[ImGuiCol_TabActive] = accentDim;
+  c[ImGuiCol_TableHeaderBg] = bgFrame;
+  c[ImGuiCol_TableBorderStrong] = border;
+  c[ImGuiCol_TableBorderLight] = rgb(255, 255, 255, 0.03f);
+  c[ImGuiCol_TableRowBg] = ImVec4(0, 0, 0, 0);
+  c[ImGuiCol_TableRowBgAlt] = rgb(255, 255, 255, 0.02f);
+  c[ImGuiCol_TextSelectedBg] = accentSoft;
+  c[ImGuiCol_NavHighlight] = accent;
+  c[ImGuiCol_PlotLines] = accent;
+  c[ImGuiCol_PlotHistogram] = accent;
+}
+
+void setupPlotTheme() {
+  ImPlotStyle &ps = ImPlot::GetStyle();
+  ps.LineWeight = 1.4f;
+  ps.PlotPadding = ImVec2(12, 12);
+  ps.LabelPadding = ImVec2(6, 6);
+  ps.PlotBorderSize = 0.0f;
+  ps.MinorAlpha = 0.20f;
+
+  ImVec4 *pc = ps.Colors;
+  pc[ImPlotCol_FrameBg] = ImVec4(0, 0, 0, 0);
+  pc[ImPlotCol_PlotBg] = rgb(9, 12, 17); // slightly recessed from the panel
+  pc[ImPlotCol_PlotBorder] = ImVec4(0, 0, 0, 0);
+  pc[ImPlotCol_AxisGrid] = rgb(255, 255, 255, 0.06f);
+  pc[ImPlotCol_AxisText] = pal::textDim;
+  pc[ImPlotCol_TitleText] = pal::text;
+  pc[ImPlotCol_LegendBg] = rgb(16, 20, 28, 0.94f);
+  pc[ImPlotCol_LegendBorder] = pal::border;
+  pc[ImPlotCol_LegendText] = pal::text;
+
+  // A clean, well-separated colormap for overlaid runs.
+  ps.Colormap = ImPlotColormap_Deep;
+}
+
+void loadFonts() {
+  ImGuiIO &io = ImGui::GetIO();
+#ifdef BJ_ASSETS_DIR
+  ImFontConfig cfg;
+  cfg.OversampleH = 3;
+  cfg.OversampleV = 2;
+  cfg.PixelSnapH = false;
+  // First font added becomes the default UI face.
+  gFontUI = io.Fonts->AddFontFromFileTTF(
+      BJ_ASSETS_DIR "/fonts/IBMPlexSans-Regular.ttf", 14.0f, &cfg);
+  gFontHead = io.Fonts->AddFontFromFileTTF(
+      BJ_ASSETS_DIR "/fonts/IBMPlexSans-SemiBold.ttf", 13.0f, &cfg);
+  gFontMono = io.Fonts->AddFontFromFileTTF(
+      BJ_ASSETS_DIR "/fonts/IBMPlexMono-Medium.ttf", 13.0f, &cfg);
+#endif
+  // Fall back to the built-in bitmap font if any face failed to load.
+  if (gFontUI == nullptr)
+    gFontUI = io.Fonts->AddFontDefault();
+  if (gFontHead == nullptr)
+    gFontHead = gFontUI;
+  if (gFontMono == nullptr)
+    gFontMono = gFontUI;
 }
 
 } // namespace
@@ -725,6 +1045,9 @@ int main(int, char **) {
   ImGui::CreateContext();
   ImPlot::CreateContext();
   ImGui::StyleColorsDark();
+  setupTheme();
+  setupPlotTheme();
+  loadFonts();
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
 
@@ -744,7 +1067,7 @@ int main(int, char **) {
 
     ImGui::Render();
     glViewport(0, 0, displayW, displayH);
-    glClearColor(0.06f, 0.06f, 0.07f, 1.0f);
+    glClearColor(0.039f, 0.047f, 0.063f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
