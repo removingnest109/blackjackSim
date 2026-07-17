@@ -76,12 +76,12 @@ ImFont *gFontMono = nullptr;
 struct GuiParams {
   int hands = 10000000;
   int decks = 6;
-  int bank = 100000;
+  int bank = 1000000;
   int bet = 10;
   bool betPercentMode = false;
   float betPercent = 1.0f;
   int minBet = 1;
-  float penetration = 0.75f;
+  float penetration = 0.5f;
   int threads = 1;
   bool dealerHitSoft17 = false;
   bool cardCounting = false;
