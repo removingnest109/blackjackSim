@@ -103,6 +103,9 @@ struct RunRecord {
   ImVec4 avgColor = ImVec4(1, 1, 1, 1); // average line
   bool visible = true;
   bool showAvg = false;
+  int bankruptedThreads = 0;
+  double bestEndBank = 0.0;
+  double worstEndBank = 0.0;
 };
 
 struct AppState {
@@ -239,6 +242,9 @@ std::string exportRuns(const AppState &s) {
     jr["color"] = {rec.color.x, rec.color.y, rec.color.z, rec.color.w};
     jr["avgColor"] = {rec.avgColor.x, rec.avgColor.y, rec.avgColor.z,
                       rec.avgColor.w};
+    jr["bankruptedThreads"] = rec.bankruptedThreads;
+    jr["bestEndBank"] = rec.bestEndBank;
+    jr["worstEndBank"] = rec.worstEndBank;
     jr["avg"] = {{"x", rec.avgX}, {"y", rec.avgY}};
     jr["threads"] = nlohmann::json::array();
     for (size_t t = 0; t < rec.xs.size(); ++t)
@@ -279,6 +285,9 @@ std::string importRuns(AppState &s) {
     rec.stopped = jr.value("stopped", false);
     if (jr.contains("stats"))
       rec.stats = statsFromJson(jr["stats"]);
+    rec.bankruptedThreads = jr.value("bankruptedThreads", 0);
+    rec.bestEndBank = jr.value("bestEndBank", 0.0);
+    rec.worstEndBank = jr.value("worstEndBank", 0.0);
     if (jr.contains("color") && jr["color"].is_array() &&
         jr["color"].size() == 4)
       rec.color = ImVec4(jr["color"][0].get<float>(),
@@ -404,6 +413,23 @@ void pollSim(AppState &s) {
       rec.avgX.push_back(s.xs[0][i]);
       rec.avgY.push_back(sumY / static_cast<double>(s.ys.size()));
     }
+    int bankrupt = 0;
+    double best = s.ys.empty() ? 0.0 : (s.ys[0].empty() ? 0.0 : s.ys[0].back());
+    double worst = best;
+    for (size_t t = 0; t < s.ys.size(); ++t) {
+      if (s.ys[t].empty())
+        continue;
+      const double v = s.ys[t].back();
+      if (v <= 0.0)
+        ++bankrupt;
+      if (v > best)
+        best = v;
+      if (v < worst)
+        worst = v;
+    }
+    rec.bankruptedThreads = bankrupt;
+    rec.bestEndBank = best;
+    rec.worstEndBank = worst;
     rec.xs = std::move(s.xs);
     rec.ys = std::move(s.ys);
     s.xs.clear();
@@ -780,8 +806,8 @@ void drawPlot(AppState &s, float height) {
   s.plotMax = ImGui::GetItemRectMax();
 }
 
-// 26 label/value pairs, laid out 3 pairs per table row.
-enum { kStatPairs = 26, kStatPairsPerRow = 3 };
+// 29 label/value pairs, laid out 3 pairs per table row.
+enum { kStatPairs = 29, kStatPairsPerRow = 3 };
 
 float statsPanelHeight(const AppState &s) {
   const ImGuiStyle &style = ImGui::GetStyle();
@@ -798,6 +824,28 @@ void drawStats(AppState &s, float height) {
   const int threads = std::max(1, s.runParams.threads);
   const int64_t startingTotal =
       static_cast<int64_t>(s.runParams.bank) * threads;
+  int bankruptedThreads = 0;
+  double bestEndBank = 0.0;
+  double worstEndBank = 0.0;
+  if (s.running) {
+    bool first = true;
+    for (size_t t = 0; t < s.ys.size(); ++t) {
+      if (s.ys[t].empty())
+        continue;
+      const double v = s.ys[t].back();
+      if (v <= 0.0)
+        ++bankruptedThreads;
+      if (first || v > bestEndBank)
+        bestEndBank = v;
+      if (first || v < worstEndBank)
+        worstEndBank = v;
+      first = false;
+    }
+  } else if (!s.history.empty()) {
+    bankruptedThreads = s.history.back().bankruptedThreads;
+    bestEndBank = s.history.back().bestEndBank;
+    worstEndBank = s.history.back().worstEndBank;
+  }
   const int64_t profit = st.bank - startingTotal;
 
   const double elapsed =
@@ -862,6 +910,12 @@ void drawStats(AppState &s, float height) {
     items.push_back(
         {"Avg bet", fmtDouble(divide(st.totalBet, st.hands))});
     items.push_back({"Worst drawdown", fmtDouble(worstDrawdown), &pal::neg});
+    items.push_back({"Bankrupt threads",
+                       fmtInt(bankruptedThreads) + " / " + fmtInt(threads),
+                       bankruptedThreads > 0 ? &pal::neg : nullptr});
+    items.push_back({"Best end bank", fmtDouble(bestEndBank), &pal::pos});
+    items.push_back({"Worst end bank", fmtDouble(worstEndBank),
+                       worstEndBank <= 0.0 ? &pal::neg : nullptr});
     items.push_back({"Elapsed", fmtDouble(elapsed, " s")});
     items.push_back(
         {"Hands per second",
