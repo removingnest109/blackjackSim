@@ -176,7 +176,17 @@ std::string describeRun(const GuiParams &p) {
                 p.minBet, p.penetration, p.dealerHitSoft17 ? "H17" : "S17",
                 p.cardCounting ? "on" : "off", p.debtAllowed ? "on" : "off",
                 p.threads, p.threads > 1 ? "s" : "");
-  return buf;
+  std::string result = buf;
+  if (p.cardCounting) {
+    result += "\nbet curve: {";
+    for (int i = 0; i < kBetCurveSize; ++i) {
+      char entry[8];
+      std::snprintf(entry, sizeof(entry), i + 1 < kBetCurveSize ? "%d," : "%d}",
+                    p.betCurve[i]);
+      result += entry;
+    }
+  }
+  return result;
 }
 
 double maxDrawdown(const std::vector<double> &series);
@@ -436,51 +446,74 @@ void drawParamsContent(AppState &s) {
   ImGui::PushItemWidth(-FLT_MIN);
 
   ImGui::TextDisabled("Hands per thread");
+  ImGui::SetItemTooltip("Number of hands each simulation thread plays.\n"
+                        "More hands give more statistically reliable results.");
   ImGui::InputInt("##hands", &s.params.hands, 0, 0);
   s.params.hands = std::max(1, s.params.hands);
 
   ImGui::TextDisabled("Decks");
+  ImGui::SetItemTooltip("Number of decks in the shoe.\n"
+                        "Most casinos use 6 or 8 decks.");
   ImGui::SliderInt("##decks", &s.params.decks, 1, 12);
 
   ImGui::TextDisabled("Starting bank");
+  ImGui::SetItemTooltip("Initial bankroll for each thread.");
   ImGui::InputInt("##bank", &s.params.bank, 0, 0);
   s.params.bank = std::max(1, s.params.bank);
 
   ImGui::TextDisabled("Bet sizing");
+  ImGui::SetItemTooltip("How the wager amount is determined each hand.");
   if (ImGui::RadioButton("Raw bet", !s.params.betPercentMode))
     s.params.betPercentMode = false;
+  ImGui::SetItemTooltip("Bet a fixed dollar amount every hand.");
   ImGui::SameLine();
   if (ImGui::RadioButton("% of bank", s.params.betPercentMode))
     s.params.betPercentMode = true;
+  ImGui::SetItemTooltip("Bet a percentage of the current bankroll every hand\n"
+                        "(proportional / Kelly-style staking).");
 
   if (s.params.betPercentMode) {
     ImGui::SliderFloat("##betpct", &s.params.betPercent, 0.01f, 100.0f,
                        "%.2f%%", ImGuiSliderFlags_Logarithmic);
+    ImGui::SetItemTooltip("Percentage of current bankroll to wager each hand.");
   } else {
     ImGui::InputInt("##bet", &s.params.bet, 0, 0);
+    ImGui::SetItemTooltip("Fixed dollar amount wagered each hand.");
     s.params.bet = std::max(1, s.params.bet);
   }
 
   ImGui::TextDisabled("Minimum bet");
+  ImGui::SetItemTooltip("Floor bet enforced every hand.\n"
+                        "In %% of bank mode the wager will never drop below this.");
   ImGui::InputInt("##minbet", &s.params.minBet, 0, 0);
   s.params.minBet = std::max(1, s.params.minBet);
 
   ImGui::TextDisabled("Shuffle penetration");
+  ImGui::SetItemTooltip("Fraction of the shoe dealt before reshuffling.\n"
+                        "0.5 = reshuffle at half the shoe, 1.0 = deal all cards.");
   ImGui::SliderFloat("##pen", &s.params.penetration, 0.05f, 1.0f, "%.2f");
 
   const int maxThreads =
       std::max(1u, std::thread::hardware_concurrency());
   ImGui::TextDisabled("Threads");
+  ImGui::SetItemTooltip("Number of independent parallel simulations.\n"
+                        "Results are aggregated across all threads.");
   ImGui::SliderInt("##threads", &s.params.threads, 1, maxThreads);
 
   ImGui::Spacing();
   ImGui::Checkbox("Dealer hits soft 17", &s.params.dealerHitSoft17);
+  ImGui::SetItemTooltip("When enabled, the dealer must hit on a soft 17 (Ace + 6).\n"
+                        "This rule increases the house edge slightly.");
   ImGui::Checkbox("Card counting", &s.params.cardCounting);
+  ImGui::SetItemTooltip("Simulate Hi-Lo card counting with bet spreading.\n"
+                        "The bet multiplier table below scales the wager by true count.");
 
   if (s.params.cardCounting) {
     if (ImGui::TreeNodeEx("Bet multiplier by true count",
                           ImGuiTreeNodeFlags_DefaultOpen |
                               ImGuiTreeNodeFlags_SpanAvailWidth)) {
+      ImGui::SetItemTooltip("Multiply the base bet by this factor at each true count bucket.\n"
+                            "Higher multipliers at positive counts exploit player advantage.");
       static const char *bucketLabels[kBetCurveSize] = {"<=0", "<=2", "<=3",
                                                         "<=4", "<=5", ">5"};
       for (int i = 0; i < kBetCurveSize; ++i) {
@@ -493,6 +526,8 @@ void drawParamsContent(AppState &s) {
   }
 
   ImGui::Checkbox("Allow debt (negative bank)", &s.params.debtAllowed);
+  ImGui::SetItemTooltip("When enabled, play continues even if the bankroll goes negative.\n"
+                        "When disabled, the simulation stops when the bank is exhausted.");
 
   ImGui::PopItemWidth();
   ImGui::EndDisabled();
@@ -681,14 +716,15 @@ void plotSeries(const char *label, const std::vector<double> &x,
                 bool normalize) {
   if (x.empty())
     return;
-  if (!normalize) {
-    ImPlot::PlotLine(label, x.data(), y.data(), static_cast<int>(x.size()));
-    return;
+  std::vector<double> adj(y.size());
+  if (normalize) {
+    for (size_t i = 0; i < y.size(); ++i)
+      adj[i] = (y[i] - startBank) / startBank * 100.0;
+  } else {
+    for (size_t i = 0; i < y.size(); ++i)
+      adj[i] = y[i] - startBank;
   }
-  std::vector<double> pct(y.size());
-  for (size_t i = 0; i < y.size(); ++i)
-    pct[i] = y[i] / startBank * 100.0;
-  ImPlot::PlotLine(label, x.data(), pct.data(), static_cast<int>(x.size()));
+  ImPlot::PlotLine(label, x.data(), adj.data(), static_cast<int>(x.size()));
 }
 
 void drawPlot(AppState &s, float height) {
@@ -706,7 +742,7 @@ void drawPlot(AppState &s, float height) {
   }
   if (ImPlot::BeginPlot("Bank balance", ImVec2(-1, height))) {
     ImPlot::SetupAxes("hands played",
-                      s.normalize ? "% of starting bank" : "bank",
+                      s.normalize ? "profit / loss (%)" : "profit / loss",
                       ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
     ImPlot::SetupAxisFormat(ImAxis_X1, metricFormatter);
     if (!s.normalize)
