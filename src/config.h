@@ -16,7 +16,7 @@ struct Config {
   float penetrationBeforeShuffle = 0.75;
   bool dealerHitSoft17 = false;
   bool cardCounting = false;
-  int betCurve[kBetCurveSize] = {1, 3, 6, 10, 14, 16};
+  int betCurve[kBetCurveSize] = {1, 2, 3, 4, 5, 6};
   bool verbose = false;
   bool debtAllowed = false;
   bool multiThread = false;

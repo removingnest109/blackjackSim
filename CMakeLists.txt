@@ -63,7 +63,17 @@ if (BLACKJACK_GUI)
             URL https://github.com/nothings/stb/archive/5736b15f7ea0ffb08dd38af21067c314d6a3aae9.zip
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     )
-    FetchContent_MakeAvailable(glfw imgui implot nlohmann_json stb)
+    # Header-only. Point SOURCE_SUBDIR at a non-existent dir so MakeAvailable
+    # populates the sources but skips pfd's own CMakeLists (its ancient
+    # cmake_minimum_required is rejected by CMake >= 4).
+    FetchContent_Declare(
+            portable_file_dialogs
+            URL https://github.com/samhocevar/portable-file-dialogs/archive/refs/tags/0.1.0.zip
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+            SOURCE_SUBDIR do-not-build
+    )
+    FetchContent_MakeAvailable(glfw imgui implot nlohmann_json stb
+            portable_file_dialogs)
 
     find_package(OpenGL REQUIRED)
 
@@ -86,7 +96,10 @@ if (BLACKJACK_GUI)
     target_link_libraries(imgui_lib PUBLIC glfw OpenGL::GL)
 
     add_executable(blackjack_gui src/gui/main_gui.cpp)
-    target_include_directories(blackjack_gui PRIVATE ${stb_SOURCE_DIR})
+    target_include_directories(blackjack_gui PRIVATE ${stb_SOURCE_DIR}
+            ${portable_file_dialogs_SOURCE_DIR})
+    target_compile_definitions(blackjack_gui PRIVATE
+            BJ_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
     target_link_libraries(blackjack_gui PRIVATE blackjack_core imgui_lib
             nlohmann_json::nlohmann_json)
     if (WIN32)
