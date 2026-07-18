@@ -39,6 +39,42 @@ TEST(Monitor, StopRequestEndsRunEarly) {
             static_cast<int64_t>(config.numberHands) * config.threads);
 }
 
+// Regression: the worker pool used to ignore stopRequested when claiming work,
+// so a stop only took effect once every queued table had been dequeued and run
+// through a full probe interval. With many tables that took seconds, and the
+// Stop button looked like it had done nothing. Stopping before the run starts
+// makes that deterministic: no table should be claimed at all.
+TEST(Monitor, StopBeforeStartClaimsNoTables) {
+  config = Config();
+  config.numberHands = 10000000;
+  config.threads = 256;
+
+  SimMonitor monitor(config.threads);
+  monitor.stopRequested.store(true);
+  const Stats result = runSim(&monitor);
+
+  EXPECT_EQ(result.hands, 0);
+}
+
+// A table claimed while a run is live must notice the stop within the polling
+// cadence, not at the next probe publish (which scales with numberHands).
+TEST(Monitor, StopIsHonouredWithinPollingCadence) {
+  config = Config();
+  config.numberHands = 100000000; // probe interval ~24k hands
+  config.threads = 4;
+
+  SimMonitor monitor(config.threads);
+  auto future = std::async(std::launch::async,
+                           [&monitor] { return runSim(&monitor); });
+  monitor.stopRequested.store(true);
+  const Stats result = future.get();
+
+  // Each table polls every 1024 hands; allow generous slack for tables already
+  // in flight while still failing if a full probe interval elapsed per table.
+  EXPECT_LT(result.hands,
+            static_cast<int64_t>(config.threads) * 1024 * 16);
+}
+
 TEST(BetPercent, PercentModeScalesBetsWithBank) {
   config = Config();
   config.numberHands = 100000;

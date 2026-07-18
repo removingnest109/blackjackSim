@@ -107,6 +107,11 @@ static Stats aggregatePlayers(const std::vector<Stats> &players) {
   return agg;
 }
 
+// Hands between stop-request polls. Power of two minus one so the test is a
+// bitmask; i == 0 hits on the first iteration, so a table claimed after Stop
+// was pressed exits straight away.
+const int kStopCheckMask = 1023;
+
 Stats runSimThread(const uint64_t &seed, ThreadProbe *probe,
                    SimMonitor *monitor) {
   const int N = std::max(1, config.playersPerTable);
@@ -146,10 +151,15 @@ Stats runSimThread(const uint64_t &seed, ThreadProbe *probe,
     if (probe && ++sinceProbe >= interval) {
       sinceProbe = 0;
       probe->publish(aggregatePlayers(players), players);
-      if (monitor &&
-          monitor->stopRequested.load(std::memory_order_relaxed))
-        break;
     }
+
+    // Polled on its own fixed cadence rather than alongside the probe: the
+    // probe interval scales with numberHands (up to ~500k hands for a large
+    // run), which made Stop take that long to register. The mask keeps this
+    // to an increment and a compare on the hot path.
+    if (monitor && (i & kStopCheckMask) == 0 &&
+        monitor->stopRequested.load(std::memory_order_relaxed))
+      break;
   }
 
   if (probe)
@@ -164,6 +174,11 @@ Stats runSim(SimMonitor *monitor) {
   const unsigned int workers = std::min(tables, hw);
 
   std::vector<Stats> results(tables);
+  // Tables left unclaimed after a stop must be excluded from the merge below,
+  // otherwise their default-constructed Stats (bank 0) drag the totals down.
+  // Distinct elements are written by distinct workers, so no synchronisation
+  // is needed beyond the join.
+  std::vector<char> ran(tables, 0);
   std::random_device dev;
   std::atomic<unsigned int> nextTable{0};
 
@@ -177,6 +192,11 @@ Stats runSim(SimMonitor *monitor) {
   for (unsigned int w = 0; w < workers; ++w) {
     workerThreads.emplace_back([&] {
       while (true) {
+        // Check before claiming more work. Without this the pool keeps
+        // dequeuing tables after Stop and only finishes once the whole queue
+        // is drained, which is what made Stop appear not to take effect.
+        if (monitor && monitor->stopRequested.load(std::memory_order_relaxed))
+          break;
         const unsigned int i = nextTable.fetch_add(1, std::memory_order_relaxed);
         if (i >= tables)
           break;
@@ -184,6 +204,7 @@ Stats runSim(SimMonitor *monitor) {
             monitor && i < monitor->probes.size() ? monitor->probes[i].get()
                                                   : nullptr;
         results[i] = runSimThread(seeds[i], probe, monitor);
+        ran[i] = 1;
       }
     });
   }
@@ -192,8 +213,9 @@ Stats runSim(SimMonitor *monitor) {
     t.join();
 
   Stats global{};
-  for (const auto &s : results)
-    global += s;
+  for (unsigned int i = 0; i < tables; ++i)
+    if (ran[i])
+      global += results[i];
 
   return global;
 }
