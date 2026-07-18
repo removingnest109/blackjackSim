@@ -1,0 +1,24 @@
+{
+  "bank": 1000,
+  "bet": 10,
+  "betCurve": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "betPercent": 1.0,
+  "betPercentMode": true,
+  "cardCounting": false,
+  "dealerHitSoft17": false,
+  "debtAllowed": false,
+  "decks": 6,
+  "hands": 1000,
+  "maxBet": 1000,
+  "minBet": 10,
+  "penetration": 0.5,
+  "playersPerTable": 7,
+  "threads": 100000
+}

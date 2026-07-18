@@ -34,6 +34,12 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
+// Individual series are skipped in the plot above this count to keep
+// rendering fast when many tables are configured.
+constexpr size_t kMaxPlotSeries = 50;
+// Archived runs show up to this many series (best+worst always included).
+constexpr size_t kArchivedPlotSeries = 100;
+
 // ---------------------------------------------------------------------------
 // Shared "terminal" palette. A cool near-black surface stack, one muted slate
 // accent reserved for interactive chrome and the live state, and green/red used
@@ -81,12 +87,14 @@ struct GuiParams {
   bool betPercentMode = false;
   float betPercent = 1.0f;
   int minBet = 1;
+  int maxBet = 0; // 0 = no limit
   float penetration = 0.5f;
   int threads = 1;
   bool dealerHitSoft17 = false;
   bool cardCounting = false;
   bool debtAllowed = false;
   int betCurve[kBetCurveSize] = {1, 2, 3, 4, 5, 6};
+  int playersPerTable = 1;
 };
 
 struct RunRecord {
@@ -173,12 +181,14 @@ std::string describeRun(const GuiParams &p) {
   else
     std::snprintf(bet, sizeof(bet), "bet %d", p.bet);
   std::snprintf(buf, sizeof(buf),
-                "%s hands/thread, %d decks, bank %s, %s, min bet %d,\n"
-                "pen %.2f, %s, counting %s, debt %s, %d thread%s",
+                "%s hands/thread, %d decks, bank %s, %s, min bet %d, max bet %s,\n"
+                "pen %.2f, %s, counting %s, debt %s, %d thread%s, %d player%s/table",
                 fmtInt(p.hands).c_str(), p.decks, fmtInt(p.bank).c_str(), bet,
-                p.minBet, p.penetration, p.dealerHitSoft17 ? "H17" : "S17",
+                p.minBet, p.maxBet == 0 ? "none" : std::to_string(p.maxBet).c_str(),
+                p.penetration, p.dealerHitSoft17 ? "H17" : "S17",
                 p.cardCounting ? "on" : "off", p.debtAllowed ? "on" : "off",
-                p.threads, p.threads > 1 ? "s" : "");
+                p.threads, p.threads > 1 ? "s" : "",
+                p.playersPerTable, p.playersPerTable > 1 ? "s" : "");
   std::string result = buf;
   if (p.cardCounting) {
     result += "\nbet curve: {";
@@ -224,6 +234,62 @@ Stats statsFromJson(const nlohmann::json &j) {
   st.totalBet = j.value("totalBet", int64_t(0));
   st.bank = j.value("bank", int64_t(0));
   return st;
+}
+
+static constexpr const char *kSettingsFile = "blackjack_settings.json";
+
+void saveSettings(const GuiParams &p) {
+  nlohmann::json j;
+  j["hands"]          = p.hands;
+  j["decks"]          = p.decks;
+  j["bank"]           = p.bank;
+  j["bet"]            = p.bet;
+  j["betPercentMode"] = p.betPercentMode;
+  j["betPercent"]     = p.betPercent;
+  j["minBet"]         = p.minBet;
+  j["maxBet"]         = p.maxBet;
+  j["penetration"]    = p.penetration;
+  j["threads"]        = p.threads;
+  j["dealerHitSoft17"]= p.dealerHitSoft17;
+  j["cardCounting"]   = p.cardCounting;
+  j["debtAllowed"]    = p.debtAllowed;
+  j["playersPerTable"]= p.playersPerTable;
+  nlohmann::json curve = nlohmann::json::array();
+  for (int i = 0; i < kBetCurveSize; ++i)
+    curve.push_back(p.betCurve[i]);
+  j["betCurve"] = curve;
+  std::ofstream f(kSettingsFile);
+  if (f.is_open())
+    f << j.dump(2);
+}
+
+void loadSettings(GuiParams &p) {
+  std::ifstream f(kSettingsFile);
+  if (!f.is_open())
+    return;
+  try {
+    nlohmann::json j;
+    f >> j;
+    p.hands          = j.value("hands",          p.hands);
+    p.decks          = j.value("decks",          p.decks);
+    p.bank           = j.value("bank",           p.bank);
+    p.bet            = j.value("bet",            p.bet);
+    p.betPercentMode = j.value("betPercentMode", p.betPercentMode);
+    p.betPercent     = j.value("betPercent",     p.betPercent);
+    p.minBet         = j.value("minBet",         p.minBet);
+    p.maxBet         = j.value("maxBet",         p.maxBet);
+    p.penetration    = j.value("penetration",    p.penetration);
+    p.threads        = j.value("threads",        p.threads);
+    p.dealerHitSoft17= j.value("dealerHitSoft17",p.dealerHitSoft17);
+    p.cardCounting   = j.value("cardCounting",   p.cardCounting);
+    p.debtAllowed    = j.value("debtAllowed",    p.debtAllowed);
+    p.playersPerTable= j.value("playersPerTable",p.playersPerTable);
+    if (j.contains("betCurve") && j["betCurve"].is_array()) {
+      const auto &curve = j["betCurve"];
+      for (int i = 0; i < kBetCurveSize && i < static_cast<int>(curve.size()); ++i)
+        p.betCurve[i] = curve[i].get<int>();
+    }
+  } catch (...) {}
 }
 
 std::string exportRuns(const AppState &s) {
@@ -332,6 +398,7 @@ void startRun(AppState &s) {
   config.betPercentMode = s.params.betPercentMode;
   config.betPercent = s.params.betPercent;
   config.minimumBet = s.params.minBet;
+  config.maximumBet = s.params.maxBet;
   config.penetrationBeforeShuffle = s.params.penetration;
   config.dealerHitSoft17 = s.params.dealerHitSoft17;
   config.cardCounting = s.params.cardCounting;
@@ -340,11 +407,13 @@ void startRun(AppState &s) {
   config.debtAllowed = s.params.debtAllowed;
   config.threads = static_cast<unsigned int>(s.params.threads);
   config.multiThread = s.params.threads > 1;
+  config.playersPerTable = s.params.playersPerTable;
 
   s.runParams = s.params;
-  s.monitor.reset(new SimMonitor(config.threads));
-  s.xs.assign(config.threads, std::vector<double>());
-  s.ys.assign(config.threads, std::vector<double>());
+  const int N = std::max(1, s.params.playersPerTable);
+  s.monitor.reset(new SimMonitor(config.threads, N));
+  s.xs.assign(static_cast<size_t>(config.threads) * N, std::vector<double>());
+  s.ys.assign(static_cast<size_t>(config.threads) * N, std::vector<double>());
   s.consumed.assign(config.threads, 0);
   s.live = Stats();
   s.haveResult = false;
@@ -364,13 +433,19 @@ void pollSim(AppState &s) {
   Stats agg;
   for (size_t t = 0; t < s.monitor->probes.size(); ++t) {
     ThreadProbe &probe = *s.monitor->probes[t];
+    const int N = probe.playerCount;
     const int n = probe.sampleCount.load(std::memory_order_acquire);
     for (int i = s.consumed[t]; i < n; ++i) {
-      s.xs[t].push_back(static_cast<double>(probe.sampleHands[i]));
-      s.ys[t].push_back(static_cast<double>(probe.sampleBank[i]));
+      for (int p = 0; p < N; ++p) {
+        const size_t idx = t * static_cast<size_t>(N) + p;
+        s.xs[idx].push_back(static_cast<double>(probe.sampleHands[i]));
+        s.ys[idx].push_back(static_cast<double>(
+            probe.samplePlayerBanks[static_cast<size_t>(i) * N + p]));
+      }
     }
     s.consumed[t] = n;
-    agg += probe.readLatest();
+    if (n > 0)
+      agg += probe.readLatest();
   }
   s.live = agg;
 
@@ -383,7 +458,8 @@ void pollSim(AppState &s) {
     s.haveResult = true;
 
     double dd = 0.0;
-    for (size_t t = 0; t < s.ys.size(); ++t)
+    const size_t ddLimit = std::min(s.ys.size(), kMaxPlotSeries);
+    for (size_t t = 0; t < ddLimit; ++t)
       dd = std::max(dd, maxDrawdown(s.ys[t]));
     s.finalDrawdown = dd;
 
@@ -420,7 +496,7 @@ void pollSim(AppState &s) {
       if (s.ys[t].empty())
         continue;
       const double v = s.ys[t].back();
-      if (v <= 0.0)
+      if (v < static_cast<double>(s.runParams.minBet))
         ++bankrupt;
       if (v > best)
         best = v;
@@ -483,7 +559,7 @@ void drawParamsContent(AppState &s) {
   ImGui::SliderInt("##decks", &s.params.decks, 1, 12);
 
   ImGui::TextDisabled("Starting bank");
-  ImGui::SetItemTooltip("Initial bankroll for each thread.");
+  ImGui::SetItemTooltip("Initial bankroll for each player.");
   ImGui::InputInt("##bank", &s.params.bank, 0, 0);
   s.params.bank = std::max(1, s.params.bank);
 
@@ -514,17 +590,29 @@ void drawParamsContent(AppState &s) {
   ImGui::InputInt("##minbet", &s.params.minBet, 0, 0);
   s.params.minBet = std::max(1, s.params.minBet);
 
+  ImGui::TextDisabled("Maximum bet");
+  ImGui::SetItemTooltip("Ceiling bet enforced every hand (0 = no limit).\n"
+                        "In %% of bank mode the wager will never exceed this.");
+  ImGui::InputInt("##maxbet", &s.params.maxBet, 0, 0);
+  s.params.maxBet = std::max(0, s.params.maxBet);
+  if (s.params.maxBet > 0 && s.params.maxBet < s.params.minBet)
+    s.params.maxBet = s.params.minBet;
+
   ImGui::TextDisabled("Shuffle penetration");
   ImGui::SetItemTooltip("Fraction of the shoe dealt before reshuffling.\n"
                         "0.5 = reshuffle at half the shoe, 1.0 = deal all cards.");
   ImGui::SliderFloat("##pen", &s.params.penetration, 0.05f, 1.0f, "%.2f");
 
-  const int maxThreads =
-      std::max(1u, std::thread::hardware_concurrency());
-  ImGui::TextDisabled("Threads");
-  ImGui::SetItemTooltip("Number of independent parallel simulations.\n"
-                        "Results are aggregated across all threads.");
-  ImGui::SliderInt("##threads", &s.params.threads, 1, maxThreads);
+  const int hwThreads =
+      static_cast<int>(std::max(1u, std::thread::hardware_concurrency()));
+  ImGui::TextDisabled("Tables");
+  ImGui::SetItemTooltip(
+      "Number of independent parallel tables to simulate.\n"
+      "Up to %d tables run truly in parallel on this machine;\n"
+      "extras are queued and run as workers free up.",
+      hwThreads);
+  ImGui::InputInt("##threads", &s.params.threads, 0, 0);
+  s.params.threads = std::max(1, std::min(s.params.threads, 10000));
 
   ImGui::Spacing();
   ImGui::Checkbox("Dealer hits soft 17", &s.params.dealerHitSoft17);
@@ -554,6 +642,14 @@ void drawParamsContent(AppState &s) {
   ImGui::Checkbox("Allow debt (negative bank)", &s.params.debtAllowed);
   ImGui::SetItemTooltip("When enabled, play continues even if the bankroll goes negative.\n"
                         "When disabled, the simulation stops when the bank is exhausted.");
+
+  ImGui::Spacing();
+  ImGui::TextDisabled("Players per table");
+  ImGui::SetItemTooltip("Number of players sharing the same shoe on each thread.\n"
+                        "Each player has their own bank and plays in sequence.\n"
+                        "More players consume the shoe faster, affecting penetration\n"
+                        "and true count for card counters.");
+  ImGui::SliderInt("##players", &s.params.playersPerTable, 1, 7);
 
   ImGui::PopItemWidth();
   ImGui::EndDisabled();
@@ -766,6 +862,7 @@ void drawPlot(AppState &s, float height) {
       s.wantPlotExport = true;
     }
   }
+  bool anySeriesHidden = false;
   if (ImPlot::BeginPlot("Bank balance", ImVec2(-1, height))) {
     ImPlot::SetupAxes("hands played",
                       s.normalize ? "profit / loss (%)" : "profit / loss",
@@ -777,13 +874,41 @@ void drawPlot(AppState &s, float height) {
     for (size_t r = 0; r < s.history.size(); ++r) {
       RunRecord &rec = s.history[r];
       if (rec.visible) {
-        // Individual threads render as a dimmed variant of the run colour;
-        // the average (below) uses the full-strength colour so it reads on top.
         const ImVec4 threadColor = shade(rec.color, 0.55f);
-        for (size_t t = 0; t < rec.xs.size(); ++t) {
-          ImPlot::SetNextLineStyle(threadColor);
-          plotSeries(rec.label.c_str(), rec.xs[t], rec.ys[t], rec.startBank,
-                     s.normalize);
+        if (rec.xs.size() <= kArchivedPlotSeries) {
+          for (size_t t = 0; t < rec.xs.size(); ++t) {
+            ImPlot::SetNextLineStyle(threadColor);
+            plotSeries(rec.label.c_str(), rec.xs[t], rec.ys[t], rec.startBank,
+                       s.normalize);
+          }
+        } else {
+          // Find best/worst end-bank indices.
+          size_t bestIdx = 0, worstIdx = 0;
+          {
+            double best = rec.ys[0].empty() ? 0.0 : rec.ys[0].back();
+            double worst = best;
+            for (size_t t = 1; t < rec.ys.size(); ++t) {
+              if (rec.ys[t].empty()) continue;
+              const double v = rec.ys[t].back();
+              if (v > best) { best = v; bestIdx = t; }
+              if (v < worst) { worst = v; worstIdx = t; }
+            }
+          }
+          // Build evenly-spaced sample + guaranteed best/worst.
+          std::vector<size_t> toPlot;
+          toPlot.reserve(kArchivedPlotSeries);
+          const size_t total = rec.xs.size();
+          for (size_t k = 0; k + 1 < kArchivedPlotSeries; ++k)
+            toPlot.push_back(k * total / (kArchivedPlotSeries - 1));
+          toPlot.push_back(bestIdx);
+          toPlot.push_back(worstIdx);
+          std::sort(toPlot.begin(), toPlot.end());
+          toPlot.erase(std::unique(toPlot.begin(), toPlot.end()), toPlot.end());
+          for (size_t t : toPlot) {
+            ImPlot::SetNextLineStyle(threadColor);
+            plotSeries(rec.label.c_str(), rec.xs[t], rec.ys[t], rec.startBank,
+                       s.normalize);
+          }
         }
       }
       if (rec.showAvg) {
@@ -794,14 +919,28 @@ void drawPlot(AppState &s, float height) {
     }
 
     if (s.running) {
-      for (size_t t = 0; t < s.xs.size(); ++t) {
-        char label[32];
-        std::snprintf(label, sizeof(label), "thread %d", static_cast<int>(t));
-        plotSeries(label, s.xs[t], s.ys[t], s.runParams.bank, s.normalize);
+      const int N = std::max(1, s.runParams.playersPerTable);
+      if (s.xs.size() <= kMaxPlotSeries) {
+        for (size_t i = 0; i < s.xs.size(); ++i) {
+          char label[32];
+          if (N == 1)
+            std::snprintf(label, sizeof(label), "thread %d",
+                          static_cast<int>(i));
+          else
+            std::snprintf(label, sizeof(label), "t%d p%d",
+                          static_cast<int>(i / N), static_cast<int>(i % N));
+          plotSeries(label, s.xs[i], s.ys[i],
+                     static_cast<double>(s.runParams.bank), s.normalize);
+        }
+      } else {
+        anySeriesHidden = true;
       }
     }
     ImPlot::EndPlot();
   }
+  if (anySeriesHidden)
+    ImGui::TextDisabled("Individual series hidden (> %zu) — showing averages only.",
+                        kMaxPlotSeries);
   s.plotMin = ImGui::GetItemRectMin();
   s.plotMax = ImGui::GetItemRectMax();
 }
@@ -822,8 +961,9 @@ float statsPanelHeight(const AppState &s) {
 void drawStats(AppState &s, float height) {
   const Stats &st = s.live;
   const int threads = std::max(1, s.runParams.threads);
+  const int players = threads * std::max(1, s.runParams.playersPerTable);
   const int64_t startingTotal =
-      static_cast<int64_t>(s.runParams.bank) * threads;
+      static_cast<int64_t>(s.runParams.bank) * players;
   int bankruptedThreads = 0;
   double bestEndBank = 0.0;
   double worstEndBank = 0.0;
@@ -833,7 +973,7 @@ void drawStats(AppState &s, float height) {
       if (s.ys[t].empty())
         continue;
       const double v = s.ys[t].back();
-      if (v <= 0.0)
+      if (v < static_cast<double>(s.runParams.minBet))
         ++bankruptedThreads;
       if (first || v > bestEndBank)
         bestEndBank = v;
@@ -879,7 +1019,7 @@ void drawStats(AppState &s, float height) {
     };
     const ImVec4 *profitCol = profit >= 0 ? &pal::pos : &pal::neg;
     std::vector<Item> items;
-    items.push_back({"Hands played", fmtInt(st.hands)});
+    items.push_back({"Hands played", fmtInt(st.hands / std::max(1, s.runParams.playersPerTable))});
     items.push_back({"Total bet", fmtInt(st.totalBet)});
     items.push_back({"Player wins", fmtInt(st.playerWins)});
     items.push_back({"Win rate", fmtPct(divide(st.playerWins, st.hands))});
@@ -899,10 +1039,10 @@ void drawStats(AppState &s, float height) {
     items.push_back({"Cards dealt", fmtInt(st.cardsDealt)});
     items.push_back({"Total bank", fmtInt(st.bank)});
     items.push_back(
-        {"Avg player bank", fmtDouble(divide(st.bank, threads))});
+        {"Avg player bank", fmtDouble(divide(st.bank, players))});
     items.push_back({"Total profit", fmtInt(profit), profitCol});
     items.push_back(
-        {"Avg profit", fmtDouble(divide(profit, threads)), profitCol});
+        {"Avg profit", fmtDouble(divide(profit, players)), profitCol});
     items.push_back(
         {"EV per hand", fmtDouble(divide(profit, st.hands), " $"), profitCol});
     items.push_back(
@@ -910,8 +1050,8 @@ void drawStats(AppState &s, float height) {
     items.push_back(
         {"Avg bet", fmtDouble(divide(st.totalBet, st.hands))});
     items.push_back({"Worst drawdown", fmtDouble(worstDrawdown), &pal::neg});
-    items.push_back({"Bankrupt threads",
-                       fmtInt(bankruptedThreads) + " / " + fmtInt(threads),
+    items.push_back({"Bankrupt players",
+                       fmtInt(bankruptedThreads) + " / " + fmtInt(players),
                        bankruptedThreads > 0 ? &pal::neg : nullptr});
     items.push_back({"Best end bank", fmtDouble(bestEndBank), &pal::pos});
     items.push_back({"Worst end bank", fmtDouble(worstEndBank),
@@ -1181,6 +1321,7 @@ int main(int, char **) {
   ImGui_ImplOpenGL3_Init("#version 130");
 
   AppState state;
+  loadSettings(state.params);
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
@@ -1235,6 +1376,8 @@ int main(int, char **) {
     if (state.future.valid())
       state.future.wait();
   }
+
+  saveSettings(state.params);
 
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();

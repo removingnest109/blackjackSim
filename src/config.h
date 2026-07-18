@@ -12,6 +12,7 @@ struct Config {
   bool betPercentMode = false;
   float betPercent = 1.0f; // % of current bank, used when betPercentMode
   int minimumBet = 1;      // floor applied to the final bet in all modes
+  int maximumBet = 0;      // ceiling applied to the final bet (0 = no limit)
   unsigned int threads = 1;
   float penetrationBeforeShuffle = 0.75;
   bool dealerHitSoft17 = false;
@@ -20,6 +21,7 @@ struct Config {
   bool verbose = false;
   bool debtAllowed = false;
   bool multiThread = false;
+  int playersPerTable = 1;
 };
 
 extern Config config;
