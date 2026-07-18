@@ -13,6 +13,20 @@ elseif (MSVC)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /DNDEBUG")
 endif ()
 
+# Link-time optimization: the hot loop in simulation.cpp calls getTrueCount and
+# betFromTrueCount from blackjack.cpp, so without LTO those stay out-of-line.
+# CMP0069 must be NEW or INTERPROCEDURAL_OPTIMIZATION is silently ignored here.
+if (POLICY CMP0069)
+    cmake_policy(SET CMP0069 NEW)
+endif ()
+include(CheckIPOSupported)
+check_ipo_supported(RESULT BLACKJACK_IPO_SUPPORTED OUTPUT BLACKJACK_IPO_ERROR)
+if (BLACKJACK_IPO_SUPPORTED)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+else ()
+    message(STATUS "LTO not supported: ${BLACKJACK_IPO_ERROR}")
+endif ()
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_library(blackjack_core

@@ -97,6 +97,16 @@ struct GuiParams {
   int playersPerTable = 1;
 };
 
+// Cached result of the per-frame (y - startBank) / normalize transform.
+// Without this the whole timeline is re-transformed into a fresh vector every
+// frame, which dominates the render thread once a run gets long.
+struct SeriesCache {
+  std::vector<double> adj;
+  double startBank = 0.0;
+  bool normalize = false;
+  bool valid = false;
+};
+
 struct RunRecord {
   int id = 0;
   std::string label; // "run 3", user-renamable
@@ -107,6 +117,8 @@ struct RunRecord {
   bool stopped = false;
   std::vector<std::vector<double>> xs, ys; // per-thread series
   std::vector<double> avgX, avgY;          // cross-thread average
+  std::vector<SeriesCache> threadCache;    // parallel to xs/ys
+  SeriesCache avgCache;                    // for avgX/avgY
   ImVec4 color = ImVec4(1, 1, 1, 1);    // thread lines
   ImVec4 avgColor = ImVec4(1, 1, 1, 1); // average line
   bool visible = true;
@@ -148,6 +160,7 @@ struct AppState {
   std::vector<std::vector<double>> xs;
   std::vector<std::vector<double>> ys;
   std::vector<int> consumed;
+  std::vector<SeriesCache> liveCache; // parallel to xs/ys
 
   Stats live;       // aggregate of latest per-thread snapshots
   Stats result;     // final merged stats
@@ -414,6 +427,7 @@ void startRun(AppState &s) {
   s.monitor.reset(new SimMonitor(config.threads, N));
   s.xs.assign(static_cast<size_t>(config.threads) * N, std::vector<double>());
   s.ys.assign(static_cast<size_t>(config.threads) * N, std::vector<double>());
+  s.liveCache.assign(static_cast<size_t>(config.threads) * N, SeriesCache());
   s.consumed.assign(config.threads, 0);
   s.live = Stats();
   s.haveResult = false;
@@ -510,6 +524,7 @@ void pollSim(AppState &s) {
     rec.ys = std::move(s.ys);
     s.xs.clear();
     s.ys.clear();
+    s.liveCache.clear();
     s.history.push_back(std::move(rec));
   }
 }
@@ -834,19 +849,33 @@ int metricFormatter(double value, char *buff, int size, void *) {
 }
 
 void plotSeries(const char *label, const std::vector<double> &x,
-                const std::vector<double> &y, double startBank,
-                bool normalize) {
+                const std::vector<double> &y, double startBank, bool normalize,
+                SeriesCache &cache) {
   if (x.empty())
     return;
-  std::vector<double> adj(y.size());
-  if (normalize) {
-    for (size_t i = 0; i < y.size(); ++i)
-      adj[i] = (y[i] - startBank) / startBank * 100.0;
-  } else {
-    for (size_t i = 0; i < y.size(); ++i)
-      adj[i] = y[i] - startBank;
+  // Anything that changes previously-computed values forces a full rebuild;
+  // a shrunk series means the slot was reused by a new run.
+  if (!cache.valid || cache.normalize != normalize ||
+      cache.startBank != startBank || cache.adj.size() > y.size()) {
+    cache.adj.clear();
+    cache.startBank = startBank;
+    cache.normalize = normalize;
+    cache.valid = true;
   }
-  ImPlot::PlotLine(label, x.data(), adj.data(), static_cast<int>(x.size()));
+  // Only transform the points appended since the last frame.
+  const size_t done = cache.adj.size();
+  if (done < y.size()) {
+    cache.adj.resize(y.size());
+    if (normalize) {
+      for (size_t i = done; i < y.size(); ++i)
+        cache.adj[i] = (y[i] - startBank) / startBank * 100.0;
+    } else {
+      for (size_t i = done; i < y.size(); ++i)
+        cache.adj[i] = y[i] - startBank;
+    }
+  }
+  const int count = static_cast<int>(std::min(x.size(), cache.adj.size()));
+  ImPlot::PlotLine(label, x.data(), cache.adj.data(), count);
 }
 
 void drawPlot(AppState &s, float height) {
@@ -875,11 +904,12 @@ void drawPlot(AppState &s, float height) {
       RunRecord &rec = s.history[r];
       if (rec.visible) {
         const ImVec4 threadColor = shade(rec.color, 0.55f);
+        rec.threadCache.resize(rec.xs.size());
         if (rec.xs.size() <= kArchivedPlotSeries) {
           for (size_t t = 0; t < rec.xs.size(); ++t) {
             ImPlot::SetNextLineStyle(threadColor);
             plotSeries(rec.label.c_str(), rec.xs[t], rec.ys[t], rec.startBank,
-                       s.normalize);
+                       s.normalize, rec.threadCache[t]);
           }
         } else {
           // Find best/worst end-bank indices.
@@ -907,19 +937,20 @@ void drawPlot(AppState &s, float height) {
           for (size_t t : toPlot) {
             ImPlot::SetNextLineStyle(threadColor);
             plotSeries(rec.label.c_str(), rec.xs[t], rec.ys[t], rec.startBank,
-                       s.normalize);
+                       s.normalize, rec.threadCache[t]);
           }
         }
       }
       if (rec.showAvg) {
         ImPlot::SetNextLineStyle(rec.color, 3.0f);
         plotSeries((rec.label + " avg").c_str(), rec.avgX, rec.avgY,
-                   rec.startBank, s.normalize);
+                   rec.startBank, s.normalize, rec.avgCache);
       }
     }
 
     if (s.running) {
       const int N = std::max(1, s.runParams.playersPerTable);
+      s.liveCache.resize(s.xs.size());
       if (s.xs.size() <= kMaxPlotSeries) {
         for (size_t i = 0; i < s.xs.size(); ++i) {
           char label[32];
@@ -930,7 +961,8 @@ void drawPlot(AppState &s, float height) {
             std::snprintf(label, sizeof(label), "t%d p%d",
                           static_cast<int>(i / N), static_cast<int>(i % N));
           plotSeries(label, s.xs[i], s.ys[i],
-                     static_cast<double>(s.runParams.bank), s.normalize);
+                     static_cast<double>(s.runParams.bank), s.normalize,
+                     s.liveCache[i]);
         }
       } else {
         anySeriesHidden = true;
