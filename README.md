@@ -69,7 +69,7 @@ A cross-platform (Windows/Linux) desktop frontend built with [Dear ImGui](https:
 
 Every tracked statistic is displayed live while the simulation runs and finalized on completion: hands, wins/losses/draws (with rates), player and dealer blackjacks, splits, doubles, shuffles, cards dealt, total bet, bank, profit, EV per hand, EV percentage, average bet, worst drawdown, elapsed time, and hands per second.
 
-### Run comparison (profiler-style)
+### Run comparison
 
 - Every completed run is archived to a **run history** with its full parameter set, statistics, and bank timeline.
 - Overlay any combination of past runs on the graph, each with a toggleable cross-thread **average line** — compare strategies side by side like captures in a profiler.
