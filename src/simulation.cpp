@@ -18,14 +18,23 @@ void simulatePlayerHands(std::vector<int> &deck, Hand hands[], int &handCount,
         break;
       }
 
+      // Doubles and splits put a second hand.bet on the table; without debt
+      // they're only offered while the bank still covers that amount. An
+      // uncovered pair is played as its hard/soft total instead.
+      const bool canAffordExtra =
+          config.debtAllowed || stats.bank >= hand.bet;
       switch (getAction(hand.value, dealerUp, hand.isSoft(),
                         hand.cardCount == 2 && hand.cards[0] == hand.cards[1] &&
-                            handCount < 4,
+                            handCount < 4 && canAffordExtra,
                         hand.cards[0])) {
       case Action::Hit:
         drawCard(deck, hand, true, stats);
         break;
       case Action::Double:
+        if (!canAffordExtra) { // can't cover the second bet: hit instead
+          drawCard(deck, hand, true, stats);
+          break;
+        }
         doubleDown(deck, hand, stats);
         done = true;
         break;
@@ -77,8 +86,14 @@ void playHand(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng,
     bet = config.minimumBet;
   if (config.maximumBet > 0 && bet > config.maximumBet)
     bet = config.maximumBet;
-  if (stats.bank < bet && !config.debtAllowed)
-    return;
+  if (!config.debtAllowed) {
+    // Bankrupt only when the bank can't cover the table minimum; a player who
+    // can still cover it but not their intended bet goes all-in instead.
+    if (stats.bank < config.minimumBet)
+      return;
+    if (stats.bank < bet)
+      bet = stats.bank;
+  }
   turnFull(deck, dealer, rng, bet, stats);
 }
 
@@ -174,10 +189,11 @@ Stats runSim(SimMonitor *monitor) {
   const unsigned int workers = std::min(tables, hw);
 
   std::vector<Stats> results(tables);
-  // Tables left unclaimed after a stop must be excluded from the merge below,
-  // otherwise their default-constructed Stats (bank 0) drag the totals down.
-  // Distinct elements are written by distinct workers, so no synchronisation
-  // is needed beyond the join.
+  // Tables left unclaimed after a stop contribute only their untouched
+  // starting banks to the merge below; counting their default-constructed
+  // Stats (bank 0) instead would drag the totals down. Distinct elements are
+  // written by distinct workers, so no synchronisation is needed beyond the
+  // join.
   std::vector<char> ran(tables, 0);
   std::random_device dev;
   std::atomic<unsigned int> nextTable{0};
@@ -212,10 +228,16 @@ Stats runSim(SimMonitor *monitor) {
   for (auto &t : workerThreads)
     t.join();
 
+  const int64_t untouchedBank =
+      static_cast<int64_t>(config.startingBank) *
+      std::max(1, config.playersPerTable);
   Stats global{};
-  for (unsigned int i = 0; i < tables; ++i)
+  for (unsigned int i = 0; i < tables; ++i) {
     if (ran[i])
       global += results[i];
+    else
+      global.bank += untouchedBank;
+  }
 
   return global;
 }

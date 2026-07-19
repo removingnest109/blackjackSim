@@ -7,7 +7,7 @@
     3,
     4,
     5,
-    6
+    10
   ],
   "betPercent": 1.0,
   "betPercentMode": false,
@@ -15,10 +15,10 @@
   "dealerHitSoft17": false,
   "debtAllowed": true,
   "decks": 6,
-  "hands": 2000000000,
-  "maxBet": 1000,
-  "minBet": 10,
+  "hands": 1000000,
+  "maxBet": 100,
+  "minBet": 5,
   "penetration": 0.5,
-  "playersPerTable": 7,
-  "threads": 1000
+  "playersPerTable": 4,
+  "threads": 10
 }

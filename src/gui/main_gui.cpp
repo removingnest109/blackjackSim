@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "monitor.h"
+#include "series.h"
 #include "simulation.h"
 #include "stats.h"
 
@@ -126,6 +127,11 @@ struct RunRecord {
   int bankruptedThreads = 0;
   double bestEndBank = 0.0;
   double worstEndBank = 0.0;
+  // Inputs the stats panel needs to derive per-player figures for an archived
+  // run; persisted so imported runs render full detail too.
+  int threadCount = 1; // tables in the run
+  int playersPerTable = 1;
+  double worstDrawdown = 0.0;
 };
 
 struct AppState {
@@ -136,8 +142,10 @@ struct AppState {
   bool wasStopped = false;
   bool normalize = false;
   int runCounter = 0;
-  double finalDrawdown = 0.0;
   std::vector<RunRecord> history;
+  // Run whose results the stats panel shows when idle; resolved by id so
+  // deletions can't shift it, falling back to the newest run.
+  int selectedRunId = -1;
 
   std::string ioPath = "runs.json";
   std::string pngPath = "plot.png";
@@ -324,6 +332,11 @@ std::string exportRuns(const AppState &s) {
     jr["bankruptedThreads"] = rec.bankruptedThreads;
     jr["bestEndBank"] = rec.bestEndBank;
     jr["worstEndBank"] = rec.worstEndBank;
+    // "threadCount" rather than "threads": that key already names the series
+    // array below.
+    jr["threadCount"] = rec.threadCount;
+    jr["playersPerTable"] = rec.playersPerTable;
+    jr["worstDrawdown"] = rec.worstDrawdown;
     jr["avg"] = {{"x", rec.avgX}, {"y", rec.avgY}};
     jr["threads"] = nlohmann::json::array();
     for (size_t t = 0; t < rec.xs.size(); ++t)
@@ -393,6 +406,16 @@ std::string importRuns(AppState &s) {
         rec.ys.push_back(jr["threads"][t].value("y", std::vector<double>()));
       }
     }
+    rec.playersPerTable = std::max(1, jr.value("playersPerTable", 1));
+    rec.threadCount = jr.value("threadCount", 0);
+    if (rec.threadCount <= 0) // pre-threadCount exports: one series per table
+      rec.threadCount = std::max<int>(1, static_cast<int>(rec.xs.size()));
+    rec.worstDrawdown = jr.value("worstDrawdown", -1.0);
+    if (rec.worstDrawdown < 0.0) { // pre-worstDrawdown exports: recompute
+      rec.worstDrawdown = 0.0;
+      for (size_t t = 0; t < rec.ys.size(); ++t)
+        rec.worstDrawdown = std::max(rec.worstDrawdown, maxDrawdown(rec.ys[t]));
+    }
     s.history.push_back(std::move(rec));
     ++imported;
   }
@@ -424,7 +447,7 @@ void startRun(AppState &s) {
 
   s.runParams = s.params;
   const int N = std::max(1, s.params.playersPerTable);
-  s.monitor.reset(new SimMonitor(config.threads, N));
+  s.monitor.reset(new SimMonitor(config.threads, N, config.startingBank));
   s.xs.assign(static_cast<size_t>(config.threads) * N, std::vector<double>());
   s.ys.assign(static_cast<size_t>(config.threads) * N, std::vector<double>());
   s.liveCache.assign(static_cast<size_t>(config.threads) * N, SeriesCache());
@@ -458,8 +481,9 @@ void pollSim(AppState &s) {
       }
     }
     s.consumed[t] = n;
-    if (n > 0)
-      agg += probe.readLatest();
+    // Unstarted probes report their starting bank, so tables still queued
+    // behind the worker pool don't show up as a loss in the live totals.
+    agg += probe.readLatest();
   }
   s.live = agg;
 
@@ -475,7 +499,6 @@ void pollSim(AppState &s) {
     const size_t ddLimit = std::min(s.ys.size(), kMaxPlotSeries);
     for (size_t t = 0; t < ddLimit; ++t)
       dd = std::max(dd, maxDrawdown(s.ys[t]));
-    s.finalDrawdown = dd;
 
     // Archive the finished run so it can be overlaid against later runs.
     RunRecord rec;
@@ -491,18 +514,7 @@ void pollSim(AppState &s) {
     rec.showAvg = true; // show the cross-thread average by default
     rec.color = ImPlot::GetColormapColor(rec.id - 1);
     rec.avgColor = rec.color;
-    size_t n = s.xs.empty() ? 0 : s.xs[0].size();
-    for (size_t t = 1; t < s.xs.size(); ++t)
-      n = std::min(n, s.xs[t].size());
-    rec.avgX.reserve(n);
-    rec.avgY.reserve(n);
-    for (size_t i = 0; i < n; ++i) {
-      double sumY = 0.0;
-      for (size_t t = 0; t < s.ys.size(); ++t)
-        sumY += s.ys[t][i];
-      rec.avgX.push_back(s.xs[0][i]);
-      rec.avgY.push_back(sumY / static_cast<double>(s.ys.size()));
-    }
+    buildAverageSeries(s.xs, s.ys, rec.avgX, rec.avgY);
     int bankrupt = 0;
     double best = s.ys.empty() ? 0.0 : (s.ys[0].empty() ? 0.0 : s.ys[0].back());
     double worst = best;
@@ -520,11 +532,15 @@ void pollSim(AppState &s) {
     rec.bankruptedThreads = bankrupt;
     rec.bestEndBank = best;
     rec.worstEndBank = worst;
+    rec.threadCount = std::max(1, s.runParams.threads);
+    rec.playersPerTable = std::max(1, s.runParams.playersPerTable);
+    rec.worstDrawdown = dd;
     rec.xs = std::move(s.xs);
     rec.ys = std::move(s.ys);
     s.xs.clear();
     s.ys.clear();
     s.liveCache.clear();
+    s.selectedRunId = rec.id;
     s.history.push_back(std::move(rec));
   }
 }
@@ -720,6 +736,14 @@ void drawRunsContent(AppState &s) {
   for (size_t r = 0; r < s.history.size(); ++r) {
     RunRecord &rec = s.history[r];
     ImGui::PushID(rec.id);
+    // Full-width selectable behind the row's widgets: clicking anywhere not
+    // covered by a widget shows this run's results in the stats panel.
+    const ImVec2 rowPos = ImGui::GetCursorPos();
+    if (ImGui::Selectable("##select", s.selectedRunId == rec.id,
+                          ImGuiSelectableFlags_AllowOverlap,
+                          ImVec2(0, ImGui::GetFrameHeight())))
+      s.selectedRunId = rec.id;
+    ImGui::SetCursorPos(rowPos);
     ImGui::Checkbox("##vis", &rec.visible);
     ImGui::SameLine();
     ImGui::ColorEdit3("##color", &rec.color.x,
@@ -740,8 +764,10 @@ void drawRunsContent(AppState &s) {
   if (removeIdx >= 0)
     s.history.erase(s.history.begin() + removeIdx);
   if (!s.history.empty() &&
-      ImGui::Button("Clear runs", ImVec2(-FLT_MIN, 0)))
+      ImGui::Button("Clear runs", ImVec2(-FLT_MIN, 0))) {
     s.history.clear();
+    s.selectedRunId = -1;
+  }
 
   ImGui::BeginDisabled(s.history.empty());
   if (ImGui::Button("Export runs", ImVec2(-FLT_MIN, 0))) {
@@ -990,53 +1016,96 @@ float statsPanelHeight(const AppState &s) {
   return h;
 }
 
-void drawStats(AppState &s, float height) {
-  const Stats &st = s.live;
-  const int threads = std::max(1, s.runParams.threads);
-  const int players = threads * std::max(1, s.runParams.playersPerTable);
-  const int64_t startingTotal =
-      static_cast<int64_t>(s.runParams.bank) * players;
-  int bankruptedThreads = 0;
+// Everything the stats panel renders, resolved from either the live run or an
+// archived RunRecord so drawStats itself stays purely presentational.
+struct StatsView {
+  Stats st;
+  std::string title;
+  int players = 1; // across all tables
+  int playersPerTable = 1;
+  int64_t startingTotal = 0;
+  int bankrupt = 0;
   double bestEndBank = 0.0;
   double worstEndBank = 0.0;
-  if (s.running) {
-    bool first = true;
-    for (size_t t = 0; t < s.ys.size(); ++t) {
-      if (s.ys[t].empty())
-        continue;
-      const double v = s.ys[t].back();
-      if (v < static_cast<double>(s.runParams.minBet))
-        ++bankruptedThreads;
-      if (first || v > bestEndBank)
-        bestEndBank = v;
-      if (first || v < worstEndBank)
-        worstEndBank = v;
-      first = false;
-    }
-  } else if (!s.history.empty()) {
-    bankruptedThreads = s.history.back().bankruptedThreads;
-    bestEndBank = s.history.back().bestEndBank;
-    worstEndBank = s.history.back().worstEndBank;
-  }
-  const int64_t profit = st.bank - startingTotal;
+  double drawdown = 0.0;
+  double elapsed = 0.0;
+};
 
-  const double elapsed =
+StatsView statsViewFromLive(const AppState &s) {
+  StatsView v;
+  v.st = s.live;
+  v.title = s.running ? "LIVE" : "RESULTS";
+  const int threads = std::max(1, s.runParams.threads);
+  v.playersPerTable = std::max(1, s.runParams.playersPerTable);
+  v.players = threads * v.playersPerTable;
+  v.startingTotal = static_cast<int64_t>(s.runParams.bank) * v.players;
+  bool first = true;
+  for (size_t t = 0; t < s.ys.size(); ++t) {
+    if (s.ys[t].empty())
+      continue;
+    const double y = s.ys[t].back();
+    if (y < static_cast<double>(s.runParams.minBet))
+      ++v.bankrupt;
+    if (first || y > v.bestEndBank)
+      v.bestEndBank = y;
+    if (first || y < v.worstEndBank)
+      v.worstEndBank = y;
+    first = false;
+    v.drawdown = std::max(v.drawdown, maxDrawdown(s.ys[t]));
+  }
+  v.elapsed =
       s.running
           ? std::chrono::duration<double>(Clock::now() - s.startTime).count()
           : (s.haveResult ? std::chrono::duration<double>(s.endTime -
                                                           s.startTime)
                                 .count()
                           : 0.0);
+  return v;
+}
 
-  double worstDrawdown = s.finalDrawdown;
-  if (s.running) {
-    worstDrawdown = 0.0;
-    for (size_t t = 0; t < s.ys.size(); ++t)
-      worstDrawdown = std::max(worstDrawdown, maxDrawdown(s.ys[t]));
+StatsView statsViewFromRecord(const RunRecord &rec) {
+  StatsView v;
+  v.st = rec.stats;
+  v.title = "RESULTS - " + rec.label;
+  v.playersPerTable = std::max(1, rec.playersPerTable);
+  v.players = std::max(1, rec.threadCount) * v.playersPerTable;
+  v.startingTotal = static_cast<int64_t>(rec.startBank) * v.players;
+  v.bankrupt = rec.bankruptedThreads;
+  v.bestEndBank = rec.bestEndBank;
+  v.worstEndBank = rec.worstEndBank;
+  v.drawdown = rec.worstDrawdown;
+  v.elapsed = rec.elapsed;
+  return v;
+}
+
+void drawStats(AppState &s, float height) {
+  // While a simulation is live it owns the panel; otherwise the selected
+  // archived run is shown, defaulting to the newest when the selected id is
+  // gone (deleted) or nothing was ever selected.
+  const RunRecord *selected = nullptr;
+  if (!s.running && !s.history.empty()) {
+    for (const RunRecord &rec : s.history)
+      if (rec.id == s.selectedRunId) {
+        selected = &rec;
+        break;
+      }
+    if (!selected)
+      selected = &s.history.back();
   }
+  const StatsView view =
+      selected ? statsViewFromRecord(*selected) : statsViewFromLive(s);
+
+  const Stats &st = view.st;
+  const int players = view.players;
+  const int bankruptedThreads = view.bankrupt;
+  const double bestEndBank = view.bestEndBank;
+  const double worstEndBank = view.worstEndBank;
+  const double elapsed = view.elapsed;
+  const double worstDrawdown = view.drawdown;
+  const int64_t profit = st.bank - view.startingTotal;
 
   ImGui::BeginChild("stats", ImVec2(0, height), ImGuiChildFlags_Border);
-  sectionHeader(s.running ? "LIVE" : "RESULTS");
+  sectionHeader(view.title.c_str());
 
   if (ImGui::BeginTable("statstable", kStatPairsPerRow * 2,
                         ImGuiTableFlags_SizingStretchProp)) {
@@ -1051,7 +1120,7 @@ void drawStats(AppState &s, float height) {
     };
     const ImVec4 *profitCol = profit >= 0 ? &pal::pos : &pal::neg;
     std::vector<Item> items;
-    items.push_back({"Hands played", fmtInt(st.hands / std::max(1, s.runParams.playersPerTable))});
+    items.push_back({"Hands played", fmtInt(st.hands / view.playersPerTable)});
     items.push_back({"Total bet", fmtInt(st.totalBet)});
     items.push_back({"Player wins", fmtInt(st.playerWins)});
     items.push_back({"Win rate", fmtPct(divide(st.playerWins, st.hands))});

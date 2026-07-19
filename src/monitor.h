@@ -29,9 +29,15 @@ struct ThreadProbe {
   std::mutex latestMutex;
   Stats latest;
 
-  explicit ThreadProbe(int players = 1)
+  // Until the first publish, `latest` reports the table's combined starting
+  // bank: players at a table that hasn't been claimed by a worker yet still
+  // hold their full starting bank, and readers summing readLatest() across
+  // probes would otherwise see a phantom loss whenever tables > workers.
+  explicit ThreadProbe(int players = 1, int64_t startingBank = 0)
       : playerCount(players), sampleCount(0),
-        samplePlayerBanks(static_cast<size_t>(kMaxSamples) * players, 0) {}
+        samplePlayerBanks(static_cast<size_t>(kMaxSamples) * players, 0) {
+    latest.bank = startingBank * players;
+  }
 
   // Publish aggregate stats together with per-player bank values.
   void publish(const Stats &agg, const std::vector<Stats> &perPlayer) {
@@ -73,10 +79,11 @@ struct SimMonitor {
   std::atomic<bool> stopRequested;
   std::vector<std::unique_ptr<ThreadProbe>> probes;
 
-  explicit SimMonitor(unsigned int threads, int playersPerTable = 1)
+  explicit SimMonitor(unsigned int threads, int playersPerTable = 1,
+                      int64_t startingBank = 0)
       : stopRequested(false) {
     probes.reserve(threads);
     for (unsigned int i = 0; i < threads; ++i)
-      probes.emplace_back(new ThreadProbe(playersPerTable));
+      probes.emplace_back(new ThreadProbe(playersPerTable, startingBank));
   }
 };
