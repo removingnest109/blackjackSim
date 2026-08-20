@@ -14,83 +14,95 @@
 
 ![GUI version](screenshots/gui.png)
 
-A high-performance Monte Carlo blackjack simulator written in portable C++11.  
-Uses statistical sampling through millions of simulated hands to estimate player outcomes and strategy validity. Supports single-threaded and multithreaded simulations, hi-lo card counting, and detailed statistics — available as both a scriptable CLI and a cross-platform GUI with live plotting and profiler-style run comparison.
-
-## Monte Carlo Simulation
-
-This simulator implements **Monte Carlo sampling** to estimate blackjack outcomes through statistical inference rather than analytical calculation. By simulating millions of hands with randomized card distributions, it can be used to determine:
-
-- **Win/loss probabilities** under various strategies
-- **Expected value** of betting strategies
-- **Strategy convergence** - how many hands are needed for reliable estimates
-- **Impact of rule variations** (e.g., dealer hitting soft 17)
-- **Card counting effectiveness** through true count distribution
-
-The law of large numbers ensures that as the number of simulated hands increases, the empirical results converge to true population parameters. With billions of hands simulated, the estimates achieve high statistical precision, making this approach superior to manual calculation for complex multi-deck scenarios.
+A high-performance blackjack simulator that plays out millions of hands to
+estimate how a strategy actually performs — win rates, expected value, and the
+long-run behavior of a bankroll. It comes in two forms that share the same
+engine: an **interactive GUI** with live plotting and side-by-side run
+comparison, and a **scriptable CLI** for batch experiments and automation.
 
 ## Features
 
-- Simulate millions of blackjack hands.
-- Configurable number of decks and hands.
-- Adjustable starting bank, default bet, minimum bet, and shuffle penetration.
-- Bet sizing as a raw amount or a percentage of the current bank (Kelly-style proportional betting), with a configurable table minimum.
-- Supports dealer hitting on soft 17.
-- Optional hi-lo card counting with true count betting and a fully configurable bet curve.
-- Multithreading to leverage multiple CPU cores.
-- Tracks detailed statistics including wins, losses, blackjacks, splits, doubles, and expected value.
-- Testing to ensure simulation correctness
+- Simulate millions of hands per run, single-threaded or across every CPU core.
+- Configurable decks, starting bank, default bet, table minimum, and shuffle penetration.
+- Bet sizing as a raw amount or a percentage of the current bank (Kelly-style proportional betting).
+- Optional hi-lo card counting with true-count betting and a fully configurable bet curve.
+- Dealer-hits-soft-17 rule toggle.
+- Detailed statistics: wins, losses, blackjacks, splits, doubles, expected value, worst drawdown, and more.
+- Export runs to JSON to save, share, or reopen in the GUI.
 
-## Build
+## Quick start
 
-Build using cmake:
+Grab a prebuilt release — no compiler or dependencies required.
+
+1. Download the archive for your platform from the [**Releases**](https://github.com/removingnest109/blackjackSim/releases) page:
+   - Linux: `blackjack-<version>-linux-x64.tar.gz`
+   - Windows: `blackjack-<version>-windows-x64.zip`
+2. Extract it. Each archive contains both programs:
+   - `blackjack_gui` — the interactive desktop app
+   - `blackjack` — the command-line tool
+
+**Launch the GUI:**
+
 ```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target blackjack
+./blackjack_gui        # Windows: blackjack_gui.exe
 ```
 
-## GUI
+**Run a quick CLI simulation:**
 
-A cross-platform (Windows/Linux) desktop frontend built with [Dear ImGui](https://github.com/ocornut/imgui) and [ImPlot](https://github.com/epezent/implot), designed for interactively exploring betting strategies at full simulation speed.
+```bash
+./blackjack -vmc -n 1000000
+# verbose, multithreaded, card counting, 1,000,000 hands per thread
+```
 
-### Live simulation view
+## The interactive GUI
 
-- Every simulation parameter from the CLI, plus a thread-count slider, editable without touching a terminal.
-- **Live bank balance graph** — one line per thread, streamed from the running simulation via lock-free snapshots with effectively zero overhead on the hot loop (hundreds of millions of hands per second on modern hardware).
-- Start and stop runs at any point; stats up to the stop are kept.
-- Human-readable axes (10M, 2.4B, 1T), with an optional **normalized view** (% of starting bank) for fair comparison across different bankrolls.
+A cross-platform desktop app (Windows/Linux) built with
+[Dear ImGui](https://github.com/ocornut/imgui) and
+[ImPlot](https://github.com/epezent/implot) for exploring betting strategies at
+full simulation speed — no terminal required.
 
-### Bet strategy controls
+### Run simulations live
 
-- Toggle between **raw bet sizing** and **percentage-of-bank** (proportional/Kelly-style) betting with a logarithmic percentage slider.
-- Configurable **minimum bet** that floors the final wager in every mode.
-- When card counting is enabled, an **editable bet curve** appears: set the bet multiplier for each true-count bucket and shape your own betting ramp.
+Adjust every parameter with sliders and toggles, then watch the results unfold
+on a **live bank-balance graph** — one line per thread, streamed straight from
+the running simulation with virtually no impact on speed (hundreds of millions
+of hands per second on modern hardware). Start and stop a run whenever you like;
+the stats up to the stopping point are kept. Axes are human-readable (10M, 2.4B,
+1T), with an optional **normalized view** (% of starting bank) so runs with
+different bankrolls can be compared fairly.
 
-### Statistics
+### Shape your betting strategy
 
-Every tracked statistic is displayed live while the simulation runs and finalized on completion: hands, wins/losses/draws (with rates), player and dealer blackjacks, splits, doubles, shuffles, cards dealt, total bet, bank, profit, EV per hand, EV percentage, average bet, worst drawdown, elapsed time, and hands per second.
+- Switch between **raw bet sizing** and **percentage-of-bank** (proportional/Kelly-style) betting with a logarithmic slider.
+- Set a **minimum bet** that floors the final wager in every mode.
+- With card counting enabled, an **editable bet curve** lets you set the bet multiplier for each true-count bucket and design your own betting ramp.
 
-### Run comparison
+Every tracked statistic — hands, win/loss/draw rates, blackjacks, splits,
+doubles, EV per hand, average bet, worst drawdown, hands per second, and more —
+updates live during the run and is finalized on completion.
+
+### Compare runs like a profiler
 
 - Every completed run is archived to a **run history** with its full parameter set, statistics, and bank timeline.
-- Overlay any combination of past runs on the graph, each with a toggleable cross-thread **average line** — compare strategies side by side like captures in a profiler.
+- Overlay any combination of past runs on the graph, each with a toggleable cross-thread **average line**, to compare strategies side by side.
 - **Rename runs** inline to keep experiments organized; hover any run to see the exact parameters it used.
-- **Export and import runs as JSON** (all stats + full timelines) to save experiments or share them.
+- **Export and import runs as JSON** (all stats plus full timelines) to save or share experiments.
 - **Export the current graph as a PNG**, exactly as displayed — overlays, zoom, and legend included.
 
-### Building the GUI
+## The command line
 
-All GUI dependencies (GLFW, ImGui, ImPlot, nlohmann/json, stb) are fetched automatically by CMake — no manual installs. On Linux you need OpenGL and X11/Wayland development headers (`libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols` on Debian/Ubuntu); on Windows it builds out of the box with MSVC.
+The CLI runs the same engine as a scriptable tool — ideal for batch experiments,
+automation, and feeding results back into the GUI via JSON.
+
+![CLI version](screenshots/cli.png)
 
 ```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target blackjack_gui
-./build/blackjack_gui
+./blackjack -vmc -n 1000000
+# Equivalent to: verbose, multithread, card counting, 1,000,000 hands per thread
 ```
 
-To build only the CLI, configure with `-DBLACKJACK_GUI=OFF`.
-
-## Configuration Options
-
-### Short / Long Flags
+Short flags can be combined (`-vmc`), and `--save-json <file>` writes a run that
+the GUI can import.
 
 | Flag | Description | Default |
 |------|-------------|---------|
@@ -109,9 +121,56 @@ To build only the CLI, configure with `-DBLACKJACK_GUI=OFF`.
 | `-m`, `--multithread` | Enable multithreading | Disabled |
 | `-o`, `--save-json <file>` | Save the run to a JSON file for GUI import (suppresses the stats printout) | Disabled |
 
-**Example:**  
+## How it works
+
+The simulator uses **Monte Carlo sampling** to estimate blackjack outcomes
+through statistical inference rather than analytical calculation. By playing out
+millions of hands with randomized card distributions, it estimates:
+
+- **Win/loss probabilities** under various strategies
+- **Expected value** of betting strategies
+- **Strategy convergence** — how many hands are needed for reliable estimates
+- **Impact of rule variations** (e.g. dealer hitting soft 17)
+- **Card-counting effectiveness** through the true-count distribution
+
+The law of large numbers guarantees that as the number of simulated hands grows,
+the empirical results converge to the true underlying probabilities. With
+billions of hands simulated, the estimates reach high precision — making this
+approach far more practical than manual calculation for complex multi-deck
+scenarios.
+
+## Building from source
+
+> Most users should download a [release](https://github.com/removingnest109/blackjackSim/releases)
+> instead. Build from source only if you want to modify the code or run on an
+> unsupported platform.
+
+All dependencies (GLFW, ImGui, ImPlot, nlohmann/json, stb) are fetched
+automatically by CMake — no manual installs. On Linux, the GUI needs OpenGL and
+X11/Wayland development headers; on Debian/Ubuntu:
 
 ```bash
-./blackjack -vmc -n 1000000
-# Equivalent to: verbose, multithread, card counting, 1,000,000 hands per thread
+sudo apt-get install libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
+```
+
+On Windows it builds out of the box with MSVC.
+
+**Build both the CLI and GUI:**
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target blackjack blackjack_gui
+```
+
+The binaries are written to `build/blackjack` and `build/blackjack_gui`.
+
+**Build only the CLI** (skips all GUI dependencies):
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DBLACKJACK_GUI=OFF && cmake --build build --target blackjack
+```
+
+**Build only the GUI:**
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target blackjack_gui
 ```
