@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "monitor.h"
+#include "runjson.h"
 #include "series.h"
 #include "simulation.h"
 #include "stats.h"
@@ -221,23 +222,6 @@ std::string describeRun(const GuiParams &p) {
     }
   }
   return result;
-}
-
-double maxDrawdown(const std::vector<double> &series);
-
-nlohmann::json statsToJson(const Stats &st) {
-  return {{"hands", st.hands},
-          {"playerWins", st.playerWins},
-          {"dealerWins", st.dealerWins},
-          {"playerBlackjacks", st.playerBlackjacks},
-          {"dealerBlackjacks", st.dealerBlackjacks},
-          {"draw", st.draw},
-          {"shuffles", st.shuffles},
-          {"cardsDealt", st.cardsDealt},
-          {"splits", st.splits},
-          {"doubles", st.doubles},
-          {"totalBet", st.totalBet},
-          {"bank", st.bank}};
 }
 
 Stats statsFromJson(const nlohmann::json &j) {
@@ -543,16 +527,6 @@ void pollSim(AppState &s) {
     s.selectedRunId = rec.id;
     s.history.push_back(std::move(rec));
   }
-}
-
-double maxDrawdown(const std::vector<double> &series) {
-  double peak = series.empty() ? 0.0 : series[0];
-  double worst = 0.0;
-  for (size_t i = 0; i < series.size(); ++i) {
-    peak = std::max(peak, series[i]);
-    worst = std::max(worst, peak - series[i]);
-  }
-  return worst;
 }
 
 std::string fmtPct(double v) {

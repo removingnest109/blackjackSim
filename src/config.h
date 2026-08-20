@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 // Bet multipliers per true-count bucket when card counting.
 // Buckets: <=0, <=2, <=3, <=4, <=5, >5.
 enum { kBetCurveSize = 6 };
@@ -22,6 +24,7 @@ struct Config {
   bool debtAllowed = false;
   bool multiThread = false;
   int playersPerTable = 1;
+  std::string saveJsonPath; // when non-empty, write the run to this JSON file
 };
 
 extern Config config;

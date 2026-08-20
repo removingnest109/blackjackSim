@@ -20,7 +20,9 @@ void printHelp() {
          "  -s, --dealer-hit-soft-17       Dealer hits soft 17\n"
          "  -c, --card-counting            Enable card counting\n"
          "  -e, --debt                     Enable negative bank\n"
-         "  -m, --multithread              Enable multithreading\n";
+         "  -m, --multithread              Enable multithreading\n"
+         "  -o, --save-json <file>         Save the run to <file> as JSON for\n"
+         "                                 GUI import (suppresses stats output)\n";
 }
 
 void getArgs(const int argc, char **argv) {
@@ -42,6 +44,14 @@ void getArgs(const int argc, char **argv) {
         config.debtAllowed = true;
       else if (arg == "--multithread")
         config.multiThread = true;
+
+      else if (arg == "--save-json") {
+        if (i + 1 >= argc) {
+          std::cerr << "Missing value for " << arg << "\n";
+          std::exit(1);
+        }
+        config.saveJsonPath = argv[++i];
+      }
 
       else if (arg == "--hands" || arg == "--decks" || arg == "--bank" ||
                arg == "--bet" || arg == "--penetration" ||
@@ -98,6 +108,19 @@ void getArgs(const int argc, char **argv) {
         case 'm':
           config.multiThread = true;
           break;
+
+        case 'o': {
+          if (j + 1 != arg.size()) {
+            std::cerr << "Option -" << flag << " requires a separate value\n";
+            std::exit(1);
+          }
+          if (i + 1 >= argc) {
+            std::cerr << "Missing value for -" << flag << "\n";
+            std::exit(1);
+          }
+          config.saveJsonPath = argv[++i];
+          break;
+        }
 
         case 'n':
         case 'd':

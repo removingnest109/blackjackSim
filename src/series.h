@@ -36,3 +36,15 @@ inline void buildAverageSeries(const std::vector<std::vector<double>> &xs,
     avgY.push_back(sumY / static_cast<double>(ys.size()));
   }
 }
+
+// Largest peak-to-trough drop in a bank series, as a positive magnitude.
+inline double maxDrawdown(const std::vector<double> &series) {
+  double peak = series.empty() ? 0.0 : series[0];
+  double worst = 0.0;
+  for (double v : series) {
+    if (v > peak)
+      peak = v;
+    worst = std::max(worst, peak - v);
+  }
+  return worst;
+}

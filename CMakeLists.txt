@@ -29,6 +29,16 @@ endif ()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# nlohmann/json is used by the core run-export (CLI) as well as the GUI, so it
+# is fetched unconditionally rather than inside the BLACKJACK_GUI block.
+include(FetchContent)
+FetchContent_Declare(
+        nlohmann_json
+        URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
 add_library(blackjack_core
         src/config.cpp
         src/print.cpp
@@ -37,16 +47,16 @@ add_library(blackjack_core
         src/blackjack.cpp
         src/simulation.cpp
         src/cli.cpp
+        src/runjson.cpp
 )
 
 target_include_directories(blackjack_core PUBLIC src)
+target_link_libraries(blackjack_core PUBLIC nlohmann_json::nlohmann_json)
 
 add_executable(blackjack src/main.cpp)
 target_link_libraries(blackjack PRIVATE blackjack_core)
 
 if (BLACKJACK_GUI)
-    include(FetchContent)
-
     set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
     set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -68,11 +78,6 @@ if (BLACKJACK_GUI)
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     )
     FetchContent_Declare(
-            nlohmann_json
-            URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
-            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-    )
-    FetchContent_Declare(
             stb
             URL https://github.com/nothings/stb/archive/5736b15f7ea0ffb08dd38af21067c314d6a3aae9.zip
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE
@@ -86,7 +91,7 @@ if (BLACKJACK_GUI)
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE
             SOURCE_SUBDIR do-not-build
     )
-    FetchContent_MakeAvailable(glfw imgui implot nlohmann_json stb
+    FetchContent_MakeAvailable(glfw imgui implot stb
             portable_file_dialogs)
 
     find_package(OpenGL REQUIRED)
@@ -139,6 +144,7 @@ add_executable(blackjack_tests
         tests/test_resolve_hand.cpp
         tests/test_card_counting.cpp
         tests/test_monitor.cpp
+        tests/test_runjson.cpp
 )
 target_link_libraries(blackjack_tests PRIVATE blackjack_core GTest::gtest_main)
 target_compile_features(blackjack_tests PRIVATE cxx_std_17)

@@ -107,6 +107,7 @@ To build only the CLI, configure with `-DBLACKJACK_GUI=OFF`.
 | `-c`, `--card-counting` | Enable card counting | Disabled |
 | `-e`, `--debt` | Allow negative bank (debt) | Disabled |
 | `-m`, `--multithread` | Enable multithreading | Disabled |
+| `-o`, `--save-json <file>` | Save the run to a JSON file for GUI import (suppresses the stats printout) | Disabled |
 
 **Example:**  
 
