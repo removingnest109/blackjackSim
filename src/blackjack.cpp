@@ -150,6 +150,20 @@ int64_t betFromTrueCount(const Stats &stats) {
   return config.betCurve[5];
 }
 
+int64_t computeBet(const Stats &stats) {
+  int64_t baseBet = config.defaultBetSize;
+  if (config.betPercentMode)
+    baseBet = static_cast<int64_t>(static_cast<double>(stats.bank) *
+                                   (config.betPercent / 100.0));
+  int64_t bet =
+      config.cardCounting ? betFromTrueCount(stats) * baseBet : baseBet;
+  if (bet < config.minimumBet)
+    bet = config.minimumBet;
+  if (config.maximumBet > 0 && bet > config.maximumBet)
+    bet = config.maximumBet;
+  return bet;
+}
+
 bool isBlackjack(const Hand &hand) {
   return !hand.splitAces && hand.cardCount == 2 && hand.value == 21;
 }

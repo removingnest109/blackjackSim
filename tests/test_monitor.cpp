@@ -130,22 +130,76 @@ TEST(AverageSeries, TruncatesToShortestSeriesAndHandlesEmpty) {
   EXPECT_EQ(avgY[1], 3.0);
 }
 
-TEST(BetPercent, PercentModeScalesBetsWithBank) {
+// computeBet is a pure function of the bank/count and config, so these assert
+// exact wagers rather than a statistically-likely outcome of a random sim
+// (the old sim-based version was seed-dependent and flaked in CI).
+TEST(BetPercent, PercentModeScalesBetWithBank) {
   config = Config();
-  config.numberHands = 100000;
-  config.threads = 1;
   config.betPercentMode = true;
-  config.betPercent = 1.0f; // 1% of current bank
+  config.betPercent = 1.0f; // 1% of the current bank
 
-  const Stats result = runSim(nullptr);
+  Stats s;
+  s.bank = 100000;
+  EXPECT_EQ(computeBet(s), 1000); // 1% of 100,000
+  s.bank = 250000;
+  EXPECT_EQ(computeBet(s), 2500); // scales up with the bank
+  s.bank = 10000;
+  EXPECT_EQ(computeBet(s), 100); // and down
 
-  EXPECT_GT(result.hands, 0);
-  EXPECT_GT(result.totalBet, 0);
-  // Average bet should be near 1% of the average bank, far above the
-  // raw default bet of 10 for a 100,000 starting bank.
-  const double avgBet =
-      static_cast<double>(result.totalBet) / static_cast<double>(result.hands);
-  EXPECT_GT(avgBet, 100.0);
+  config = Config();
+}
+
+TEST(BetPercent, FlatModeIgnoresBank) {
+  config = Config();
+  config.defaultBetSize = 25; // percent mode off by default
+
+  Stats s;
+  s.bank = 100000;
+  EXPECT_EQ(computeBet(s), 25);
+  s.bank = 5;
+  EXPECT_EQ(computeBet(s), 25); // flat bet, independent of the bank
+
+  config = Config();
+}
+
+TEST(BetPercent, MinimumBetFloorsComputedBet) {
+  config = Config();
+  config.betPercentMode = true;
+  config.betPercent = 0.001f; // 0.001% of 100,000 = 1, below the floor
+  config.minimumBet = 50;
+
+  Stats s;
+  s.bank = 100000;
+  EXPECT_EQ(computeBet(s), 50);
+
+  config = Config();
+}
+
+TEST(BetPercent, MaximumBetCapsComputedBet) {
+  config = Config();
+  config.betPercentMode = true;
+  config.betPercent = 5.0f; // 5% of 100,000 = 5000
+  config.maximumBet = 1000;
+
+  Stats s;
+  s.bank = 100000;
+  EXPECT_EQ(computeBet(s), 1000);
+
+  config = Config();
+}
+
+TEST(BetPercent, CountMultiplierScalesFlatBet) {
+  config = Config();
+  config.cardCounting = true;
+  config.defaultBetSize = 10; // betCurve defaults to {1,2,3,4,5,6}
+
+  Stats s;
+  s.trueCount = 6.0; // top bucket -> multiplier 6
+  EXPECT_EQ(computeBet(s), 60);
+  s.trueCount = -1.0; // bottom bucket -> multiplier 1
+  EXPECT_EQ(computeBet(s), 10);
+
+  config = Config();
 }
 
 TEST(BetPercent, MinimumBetIsOne) {

@@ -17,6 +17,11 @@ Hand split(std::vector<int> &deck, Hand &originalHand, Stats &stats);
 void doubleDown(std::vector<int> &deck, Hand &hand, Stats &stats);
 void getTrueCount(const std::vector<int> &deck, Stats &stats);
 int64_t betFromTrueCount(const Stats &stats);
+// Intended wager for the next hand from the current bank/count and config:
+// applies percent-of-bank or flat sizing, the count multiplier, then the
+// minimum/maximum clamps. Pure function of stats + config (no RNG); the
+// bankrupt sit-out and all-in adjustments stay in playHand.
+int64_t computeBet(const Stats &stats);
 bool isBlackjack(const Hand &hand);
 bool detectBlackjacks(const Hand &handPlayer, const Hand &handDealer,
                       const int64_t &bet, Stats &stats);
