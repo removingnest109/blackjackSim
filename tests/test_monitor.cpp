@@ -33,7 +33,7 @@ TEST(Monitor, StopRequestEndsRunEarly) {
   SimMonitor monitor(config.threads);
   auto future = std::async(std::launch::async,
                            [&monitor] { return runSim(&monitor); });
-  monitor.stopRequested.store(true);
+  monitor.requestStop();
   const Stats result = future.get();
 
   EXPECT_LT(result.hands,
@@ -51,7 +51,7 @@ TEST(Monitor, StopBeforeStartClaimsNoTables) {
   config.threads = 256;
 
   SimMonitor monitor(config.threads);
-  monitor.stopRequested.store(true);
+  monitor.requestStop();
   const Stats result = runSim(&monitor);
 
   EXPECT_EQ(result.hands, 0);
@@ -89,7 +89,7 @@ TEST(Monitor, StopIsHonouredWithinPollingCadence) {
   SimMonitor monitor(config.threads);
   auto future = std::async(std::launch::async,
                            [&monitor] { return runSim(&monitor); });
-  monitor.stopRequested.store(true);
+  monitor.requestStop();
   const Stats result = future.get();
 
   // Each table polls every 1024 hands; allow generous slack for tables already
@@ -214,17 +214,12 @@ TEST(ShortStack, UncoveredSplitPlaysAsHardTotal) {
   stats.bank = 0; // initial bet already on the table, nothing left
 
   std::vector<int> deck = {10, 10, 10, 10};
-  Hand dealer;
-  dealer.cards[0] = 6;
-  dealer.cardCount = 1;
+  Hand dealer{.cards = {6}, .cardCount = 1};
 
   Hand hands[4];
   int handCount = 1;
-  hands[0].cards[0] = 8; // pair of 8s: always split when affordable
-  hands[0].cards[1] = 8;
-  hands[0].cardCount = 2;
-  hands[0].value = 16;
-  hands[0].bet = 10;
+  // pair of 8s: always split when affordable
+  hands[0] = Hand{.cards = {8, 8}, .cardCount = 2, .value = 16, .bet = 10};
 
   simulatePlayerHands(deck, hands, handCount, dealer, stats);
 
@@ -239,17 +234,12 @@ TEST(ShortStack, UncoveredDoubleHitsInstead) {
   stats.bank = 0;
 
   std::vector<int> deck = {9}; // hit card: 11 + 9 = 20, then stand
-  Hand dealer;
-  dealer.cards[0] = 6;
-  dealer.cardCount = 1;
+  Hand dealer{.cards = {6}, .cardCount = 1};
 
   Hand hands[4];
   int handCount = 1;
-  hands[0].cards[0] = 6; // hard 11 vs 6: double when affordable
-  hands[0].cards[1] = 5;
-  hands[0].cardCount = 2;
-  hands[0].value = 11;
-  hands[0].bet = 10;
+  // hard 11 vs 6: double when affordable
+  hands[0] = Hand{.cards = {6, 5}, .cardCount = 2, .value = 11, .bet = 10};
 
   simulatePlayerHands(deck, hands, handCount, dealer, stats);
 
@@ -264,17 +254,11 @@ TEST(ShortStack, CoveredDoubleStillDoubles) {
   stats.bank = 10; // exactly covers the second bet
 
   std::vector<int> deck = {9};
-  Hand dealer;
-  dealer.cards[0] = 6;
-  dealer.cardCount = 1;
+  Hand dealer{.cards = {6}, .cardCount = 1};
 
   Hand hands[4];
   int handCount = 1;
-  hands[0].cards[0] = 6;
-  hands[0].cards[1] = 5;
-  hands[0].cardCount = 2;
-  hands[0].value = 11;
-  hands[0].bet = 10;
+  hands[0] = Hand{.cards = {6, 5}, .cardCount = 2, .value = 11, .bet = 10};
 
   simulatePlayerHands(deck, hands, handCount, dealer, stats);
 
@@ -289,17 +273,11 @@ TEST(ShortStack, DebtAllowedKeepsUncoveredDoubles) {
   stats.bank = 0;
 
   std::vector<int> deck = {9};
-  Hand dealer;
-  dealer.cards[0] = 6;
-  dealer.cardCount = 1;
+  Hand dealer{.cards = {6}, .cardCount = 1};
 
   Hand hands[4];
   int handCount = 1;
-  hands[0].cards[0] = 6;
-  hands[0].cards[1] = 5;
-  hands[0].cardCount = 2;
-  hands[0].value = 11;
-  hands[0].bet = 10;
+  hands[0] = Hand{.cards = {6, 5}, .cardCount = 2, .value = 11, .bet = 10};
 
   simulatePlayerHands(deck, hands, handCount, dealer, stats);
 

@@ -6,8 +6,8 @@
 #include <atomic>
 #include <thread>
 
-void simulatePlayerHands(std::vector<int> &deck, Hand hands[], int &handCount,
-                         const Hand &dealer, Stats &stats) {
+void simulatePlayerHands(std::vector<int> &deck, std::span<Hand> hands,
+                         int &handCount, const Hand &dealer, Stats &stats) {
   for (int i = 0; i < handCount; ++i) {
     bool done = false;
     while (!done) {
@@ -125,10 +125,10 @@ static Stats aggregatePlayers(const std::vector<Stats> &players) {
 // Hands between stop-request polls. Power of two minus one so the test is a
 // bitmask; i == 0 hits on the first iteration, so a table claimed after Stop
 // was pressed exits straight away.
-const int kStopCheckMask = 1023;
+constexpr int kStopCheckMask = 1023;
 
 Stats runSimThread(const uint64_t &seed, ThreadProbe *probe,
-                   SimMonitor *monitor) {
+                   std::stop_token stop) {
   const int N = std::max(1, config.playersPerTable);
   std::vector<Stats> players(static_cast<size_t>(N));
   for (auto &p : players)
@@ -172,8 +172,7 @@ Stats runSimThread(const uint64_t &seed, ThreadProbe *probe,
     // probe interval scales with numberHands (up to ~500k hands for a large
     // run), which made Stop take that long to register. The mask keeps this
     // to an increment and a compare on the hot path.
-    if (monitor && (i & kStopCheckMask) == 0 &&
-        monitor->stopRequested.load(std::memory_order_relaxed))
+    if ((i & kStopCheckMask) == 0 && stop.stop_requested()) [[unlikely]]
       break;
   }
 
@@ -203,30 +202,37 @@ Stats runSim(SimMonitor *monitor) {
   for (unsigned int i = 0; i < tables; ++i)
     seeds[i] = dev() + i;
 
-  std::vector<std::thread> workerThreads;
-  workerThreads.reserve(workers);
-  for (unsigned int w = 0; w < workers; ++w) {
-    workerThreads.emplace_back([&] {
-      while (true) {
-        // Check before claiming more work. Without this the pool keeps
-        // dequeuing tables after Stop and only finishes once the whole queue
-        // is drained, which is what made Stop appear not to take effect.
-        if (monitor && monitor->stopRequested.load(std::memory_order_relaxed))
-          break;
-        const unsigned int i = nextTable.fetch_add(1, std::memory_order_relaxed);
-        if (i >= tables)
-          break;
-        ThreadProbe *probe =
-            monitor && i < monitor->probes.size() ? monitor->probes[i].get()
-                                                  : nullptr;
-        results[i] = runSimThread(seeds[i], probe, monitor);
-        ran[i] = 1;
-      }
-    });
-  }
+  // Cooperative-cancellation token shared by every worker; empty (never
+  // stopped) when the caller supplied no monitor.
+  const std::stop_token stop =
+      monitor ? monitor->stopToken() : std::stop_token{};
 
-  for (auto &t : workerThreads)
-    t.join();
+  // jthreads join automatically when this scope ends, so there is no explicit
+  // join loop and an exception on the merge path can't leak a running thread.
+  {
+    std::vector<std::jthread> workerThreads;
+    workerThreads.reserve(workers);
+    for (unsigned int w = 0; w < workers; ++w) {
+      workerThreads.emplace_back([&] {
+        while (true) {
+          // Check before claiming more work. Without this the pool keeps
+          // dequeuing tables after Stop and only finishes once the whole queue
+          // is drained, which is what made Stop appear not to take effect.
+          if (stop.stop_requested())
+            break;
+          const unsigned int i =
+              nextTable.fetch_add(1, std::memory_order_relaxed);
+          if (i >= tables)
+            break;
+          ThreadProbe *probe =
+              monitor && i < monitor->probes.size() ? monitor->probes[i].get()
+                                                    : nullptr;
+          results[i] = runSimThread(seeds[i], probe, stop);
+          ran[i] = 1;
+        }
+      });
+    }
+  }
 
   const int64_t untouchedBank =
       static_cast<int64_t>(config.startingBank) *

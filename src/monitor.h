@@ -4,13 +4,14 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <stop_token>
 #include <vector>
 
 // Live-observation support for GUI (or other) frontends.
 // A SimMonitor is optional: when none is supplied, the simulation
 // runs exactly as before with zero overhead.
 
-enum { kMaxSamples = 4096 };
+inline constexpr int kMaxSamples = 4096;
 
 struct ThreadProbe {
   int playerCount;
@@ -42,7 +43,7 @@ struct ThreadProbe {
   // Publish aggregate stats together with per-player bank values.
   void publish(const Stats &agg, const std::vector<Stats> &perPlayer) {
     const int c = sampleCount.load(std::memory_order_relaxed);
-    if (c < kMaxSamples) {
+    if (c < kMaxSamples) [[likely]] {
       sampleHands[c] = perPlayer.empty() ? agg.hands : perPlayer[0].hands;
       sampleBank[c] = agg.bank;
       for (int p = 0; p < playerCount; ++p) {
@@ -76,14 +77,20 @@ struct ThreadProbe {
 };
 
 struct SimMonitor {
-  std::atomic<bool> stopRequested;
+  // Cooperative cancellation for the worker pool. Frontends call requestStop();
+  // workers poll the token via stopToken(). Replaces the hand-rolled
+  // atomic<bool> flag with the standard C++20 stop mechanism.
+  std::stop_source stopSource;
   std::vector<std::unique_ptr<ThreadProbe>> probes;
 
   explicit SimMonitor(unsigned int threads, int playersPerTable = 1,
-                      int64_t startingBank = 0)
-      : stopRequested(false) {
+                      int64_t startingBank = 0) {
     probes.reserve(threads);
     for (unsigned int i = 0; i < threads; ++i)
-      probes.emplace_back(new ThreadProbe(playersPerTable, startingBank));
+      probes.push_back(
+          std::make_unique<ThreadProbe>(playersPerTable, startingBank));
   }
+
+  void requestStop() { stopSource.request_stop(); }
+  std::stop_token stopToken() const { return stopSource.get_token(); }
 };

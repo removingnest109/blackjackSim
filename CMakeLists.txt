@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(blackjack)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(BLACKJACK_GUI "Build the ImGui/ImPlot GUI (blackjack_gui)" ON)
@@ -43,7 +43,6 @@ add_library(blackjack_core
         src/config.cpp
         src/print.cpp
         src/model.cpp
-        src/actions.cpp
         src/blackjack.cpp
         src/simulation.cpp
         src/cli.cpp
@@ -147,7 +146,7 @@ add_executable(blackjack_tests
         tests/test_runjson.cpp
 )
 target_link_libraries(blackjack_tests PRIVATE blackjack_core GTest::gtest_main)
-target_compile_features(blackjack_tests PRIVATE cxx_std_17)
+target_compile_features(blackjack_tests PRIVATE cxx_std_20)
 
 if (TARGET gtest)
     set_target_properties(gtest PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED YES)

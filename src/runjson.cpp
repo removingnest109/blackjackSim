@@ -4,7 +4,7 @@
 #include "monitor.h"
 #include "series.h"
 #include <algorithm>
-#include <cstdio>
+#include <format>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -27,9 +27,7 @@ nlohmann::json statsToJson(const Stats &st) {
 namespace {
 
 std::string fmtInt(int64_t v) {
-  char buf[32];
-  std::snprintf(buf, sizeof(buf), "%lld", static_cast<long long>(v < 0 ? -v : v));
-  std::string digits = buf;
+  std::string digits = std::format("{}", v < 0 ? -v : v);
   std::string out;
   const int len = static_cast<int>(digits.size());
   for (int i = 0; i < len; ++i) {
@@ -43,31 +41,28 @@ std::string fmtInt(int64_t v) {
 // Parameter summary matching the GUI's describeRun, built from the global
 // config so imported CLI runs show the same tooltip as GUI runs.
 std::string describeRun() {
-  char buf[256];
-  char bet[48];
-  if (config.betPercentMode)
-    std::snprintf(bet, sizeof(bet), "bet %.2f%% of bank", config.betPercent);
-  else
-    std::snprintf(bet, sizeof(bet), "bet %d", config.defaultBetSize);
-  std::snprintf(
-      buf, sizeof(buf),
-      "%s hands/thread, %d decks, bank %s, %s, min bet %d, max bet %s,\n"
-      "pen %.2f, %s, counting %s, debt %s, %d thread%s, %d player%s/table",
-      fmtInt(config.numberHands).c_str(), config.numberDecks,
-      fmtInt(config.startingBank).c_str(), bet, config.minimumBet,
-      config.maximumBet == 0 ? "none" : std::to_string(config.maximumBet).c_str(),
+  const std::string bet =
+      config.betPercentMode
+          ? std::format("bet {:.2f}% of bank", config.betPercent)
+          : std::format("bet {}", config.defaultBetSize);
+  const std::string maxBet =
+      config.maximumBet == 0 ? "none" : std::to_string(config.maximumBet);
+
+  std::string result = std::format(
+      "{} hands/thread, {} decks, bank {}, {}, min bet {}, max bet {},\n"
+      "pen {:.2f}, {}, counting {}, debt {}, {} thread{}, {} player{}/table",
+      fmtInt(config.numberHands), config.numberDecks,
+      fmtInt(config.startingBank), bet, config.minimumBet, maxBet,
       config.penetrationBeforeShuffle, config.dealerHitSoft17 ? "H17" : "S17",
       config.cardCounting ? "on" : "off", config.debtAllowed ? "on" : "off",
       config.threads, config.threads > 1 ? "s" : "", config.playersPerTable,
       config.playersPerTable > 1 ? "s" : "");
-  std::string result = buf;
+
   if (config.cardCounting) {
     result += "\nbet curve: {";
     for (int i = 0; i < kBetCurveSize; ++i) {
-      char entry[8];
-      std::snprintf(entry, sizeof(entry), i + 1 < kBetCurveSize ? "%d," : "%d}",
-                    config.betCurve[i]);
-      result += entry;
+      result += std::format("{}", config.betCurve[i]);
+      result += (i + 1 < kBetCurveSize) ? "," : "}";
     }
   }
   return result;

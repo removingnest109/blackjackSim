@@ -1,7 +1,33 @@
 #include "cli.h"
 #include "config.h"
+#include <charconv>
 #include <iostream>
-#include <string>
+#include <optional>
+#include <string_view>
+
+namespace {
+
+// Strict full-string parse: unlike std::stoi/std::stof, trailing garbage
+// ("10abc") is rejected rather than silently truncated.
+std::optional<int> parseInt(std::string_view s) {
+  int v{};
+  const auto *end = s.data() + s.size();
+  const auto [ptr, ec] = std::from_chars(s.data(), end, v);
+  if (ec == std::errc{} && ptr == end)
+    return v;
+  return std::nullopt;
+}
+
+std::optional<float> parseFloat(std::string_view s) {
+  float v{};
+  const auto *end = s.data() + s.size();
+  const auto [ptr, ec] = std::from_chars(s.data(), end, v);
+  if (ec == std::errc{} && ptr == end)
+    return v;
+  return std::nullopt;
+}
+
+} // namespace
 
 void printHelp() {
   std::cout
@@ -27,7 +53,7 @@ void printHelp() {
 
 void getArgs(const int argc, char **argv) {
   for (int i = 1; i < argc; ++i) {
-    const std::string arg = argv[i];
+    const std::string_view arg = argv[i];
 
     if (arg.rfind("--", 0) == 0) {
       if (arg == "--help") {
@@ -60,24 +86,36 @@ void getArgs(const int argc, char **argv) {
           std::cerr << "Missing value for " << arg << "\n";
           std::exit(1);
         }
-        std::string value = argv[++i];
-        try {
-          if (arg == "--hands")
-            config.numberHands = std::stoi(value);
-          else if (arg == "--decks")
-            config.numberDecks = std::stoi(value);
-          else if (arg == "--bank")
-            config.startingBank = std::stoi(value);
-          else if (arg == "--bet")
-            config.defaultBetSize = std::stoi(value);
-          else if (arg == "--penetration")
-            config.penetrationBeforeShuffle = std::stof(value);
-          else if (arg == "--bet-percent") {
-            config.betPercent = std::stof(value);
+        const std::string_view value = argv[++i];
+        bool ok = true;
+        const auto asInt = [&](int &dst) {
+          if (const auto v = parseInt(value))
+            dst = *v;
+          else
+            ok = false;
+        };
+        if (arg == "--hands")
+          asInt(config.numberHands);
+        else if (arg == "--decks")
+          asInt(config.numberDecks);
+        else if (arg == "--bank")
+          asInt(config.startingBank);
+        else if (arg == "--bet")
+          asInt(config.defaultBetSize);
+        else if (arg == "--penetration") {
+          if (const auto v = parseFloat(value))
+            config.penetrationBeforeShuffle = *v;
+          else
+            ok = false;
+        } else if (arg == "--bet-percent") {
+          if (const auto v = parseFloat(value)) {
+            config.betPercent = *v;
             config.betPercentMode = true;
-          } else if (arg == "--min-bet")
-            config.minimumBet = std::stoi(value);
-        } catch (...) {
+          } else
+            ok = false;
+        } else if (arg == "--min-bet")
+          asInt(config.minimumBet);
+        if (!ok) {
           std::cerr << "Invalid value for " << arg << "\n";
           std::exit(1);
         }
@@ -137,24 +175,36 @@ void getArgs(const int argc, char **argv) {
             std::cerr << "Missing value for -" << flag << "\n";
             std::exit(1);
           }
-          std::string value = argv[++i];
-          try {
-            if (flag == 'n')
-              config.numberHands = std::stoi(value);
-            else if (flag == 'd')
-              config.numberDecks = std::stoi(value);
-            else if (flag == 'b')
-              config.startingBank = std::stoi(value);
-            else if (flag == 't')
-              config.defaultBetSize = std::stoi(value);
-            else if (flag == 'p')
-              config.penetrationBeforeShuffle = std::stof(value);
-            else if (flag == 'r') {
-              config.betPercent = std::stof(value);
+          const std::string_view value = argv[++i];
+          bool ok = true;
+          const auto asInt = [&](int &dst) {
+            if (const auto v = parseInt(value))
+              dst = *v;
+            else
+              ok = false;
+          };
+          if (flag == 'n')
+            asInt(config.numberHands);
+          else if (flag == 'd')
+            asInt(config.numberDecks);
+          else if (flag == 'b')
+            asInt(config.startingBank);
+          else if (flag == 't')
+            asInt(config.defaultBetSize);
+          else if (flag == 'p') {
+            if (const auto v = parseFloat(value))
+              config.penetrationBeforeShuffle = *v;
+            else
+              ok = false;
+          } else if (flag == 'r') {
+            if (const auto v = parseFloat(value)) {
+              config.betPercent = *v;
               config.betPercentMode = true;
-            } else if (flag == 'i')
-              config.minimumBet = std::stoi(value);
-          } catch (...) {
+            } else
+              ok = false;
+          } else if (flag == 'i')
+            asInt(config.minimumBet);
+          if (!ok) {
             std::cerr << "Invalid value for -" << flag << "\n";
             std::exit(1);
           }

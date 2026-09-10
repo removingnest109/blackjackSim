@@ -676,7 +676,7 @@ void drawRunsContent(AppState &s) {
 
   ImGui::BeginDisabled(!s.running);
   if (ImGui::Button("Stop", ImVec2(-FLT_MIN, 0)) && s.monitor) {
-    s.monitor->stopRequested.store(true, std::memory_order_relaxed);
+    s.monitor->requestStop();
     s.wasStopped = true;
   }
   ImGui::EndDisabled();
@@ -1447,7 +1447,7 @@ int main(int, char **) {
 
   // If a run is still active, request stop and wait for it.
   if (state.running && state.monitor) {
-    state.monitor->stopRequested.store(true);
+    state.monitor->requestStop();
     if (state.future.valid())
       state.future.wait();
   }

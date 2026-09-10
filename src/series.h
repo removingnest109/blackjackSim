@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <numeric>
+#include <ranges>
 #include <vector>
 
 // Cross-series average of index-aligned bank samples (sample i is published on
@@ -25,13 +27,15 @@ inline void buildAverageSeries(const std::vector<std::vector<double>> &xs,
     n = std::min(n, ys[t].size());
   avgX.reserve(n);
   avgY.reserve(n);
+  const auto column = [](const std::vector<std::vector<double>> &series,
+                         size_t i) {
+    return series |
+           std::views::transform([i](const auto &s) { return s[i]; });
+  };
   for (size_t i = 0; i < n; ++i) {
-    double x = xs[0][i];
-    for (size_t t = 1; t < xs.size(); ++t)
-      x = std::max(x, xs[t][i]);
-    double sumY = 0.0;
-    for (size_t t = 0; t < ys.size(); ++t)
-      sumY += ys[t][i];
+    const double x = std::ranges::max(column(xs, i));
+    const auto colY = column(ys, i);
+    const double sumY = std::accumulate(colY.begin(), colY.end(), 0.0);
     avgX.push_back(x);
     avgY.push_back(sumY / static_cast<double>(ys.size()));
   }

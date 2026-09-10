@@ -4,12 +4,12 @@
 
 // Bet multipliers per true-count bucket when card counting.
 // Buckets: <=0, <=2, <=3, <=4, <=5, >5.
-enum { kBetCurveSize = 6 };
+inline constexpr int kBetCurveSize = 6;
 
 struct Config {
-  int numberHands = 10000000;
+  int numberHands = 10'000'000;
   int numberDecks = 6;
-  int startingBank = 100000;
+  int startingBank = 100'000;
   int defaultBetSize = 10;
   bool betPercentMode = false;
   float betPercent = 1.0f; // % of current bank, used when betPercentMode
