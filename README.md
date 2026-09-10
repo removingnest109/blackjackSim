@@ -1,4 +1,4 @@
-# Monte Carlo Blackjack Simulator (C++11)
+# Monte Carlo Blackjack Simulator (C++20)
 
 <p align="center">
 
@@ -145,9 +145,10 @@ scenarios.
 > instead. Build from source only if you want to modify the code or run on an
 > unsupported platform.
 
-All dependencies (GLFW, ImGui, ImPlot, nlohmann/json, stb) are fetched
-automatically by CMake — no manual installs. On Linux, the GUI needs OpenGL and
-X11/Wayland development headers; on Debian/Ubuntu:
+Requires CMake 3.10+ and a C++20-capable compiler (GCC 11+, Clang 13+, or
+MSVC 2019 16.11+). All dependencies (GLFW, ImGui, ImPlot, nlohmann/json, stb)
+are fetched automatically by CMake — no manual installs. On Linux, the GUI
+needs OpenGL and X11/Wayland development headers; on Debian/Ubuntu:
 
 ```bash
 sudo apt-get install libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev wayland-protocols
