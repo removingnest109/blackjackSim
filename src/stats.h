@@ -12,6 +12,7 @@ struct Stats {
   int64_t cardsDealt = 0;
   int64_t splits = 0;
   int64_t doubles = 0;
+  int64_t surrenders = 0;
   int64_t totalBet = 0;
   int64_t bank = 0;
   int64_t cardsSinceShuffle = 0;
@@ -29,6 +30,7 @@ struct Stats {
     cardsDealt += o.cardsDealt;
     splits += o.splits;
     doubles += o.doubles;
+    surrenders += o.surrenders;
     totalBet += o.totalBet;
     bank += o.bank;
     return *this;

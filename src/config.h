@@ -18,6 +18,8 @@ struct Config {
   unsigned int threads = 1;
   float penetrationBeforeShuffle = 0.75;
   bool dealerHitSoft17 = false;
+  bool surrenderAllowed = false;
+  bool earlySurrender = false; // only meaningful when surrenderAllowed
   bool cardCounting = false;
   int betCurve[kBetCurveSize] = {1, 2, 3, 4, 5, 6};
   bool verbose = false;
@@ -25,6 +27,7 @@ struct Config {
   bool multiThread = false;
   int playersPerTable = 1;
   std::string saveJsonPath; // when non-empty, write the run to this JSON file
+  std::string strategyPath; // when non-empty, load this JSON chart into gStrategy
 };
 
 extern Config config;

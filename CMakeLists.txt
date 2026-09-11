@@ -43,6 +43,7 @@ add_library(blackjack_core
         src/config.cpp
         src/print.cpp
         src/model.cpp
+        src/actions.cpp
         src/blackjack.cpp
         src/simulation.cpp
         src/cli.cpp
@@ -144,6 +145,9 @@ add_executable(blackjack_tests
         tests/test_card_counting.cpp
         tests/test_monitor.cpp
         tests/test_runjson.cpp
+        tests/test_strategy_table.cpp
+        tests/test_surrender.cpp
+        tests/test_strategy_io.cpp
 )
 target_link_libraries(blackjack_tests PRIVATE blackjack_core GTest::gtest_main)
 target_compile_features(blackjack_tests PRIVATE cxx_std_20)

@@ -1,3 +1,4 @@
+#include "actions.h"
 #include "cli.h"
 #include "config.h"
 #include "monitor.h"
@@ -11,6 +12,12 @@
 
 int main(const int argc, char **argv) {
   getArgs(argc, argv);
+  if (!config.strategyPath.empty() &&
+      !loadStrategyFromJson(config.strategyPath, gStrategy)) {
+    std::cerr << "aborting: could not load strategy \"" << config.strategyPath
+              << "\"\n";
+    return 1;
+  }
   if (config.multiThread)
     config.threads = std::thread::hardware_concurrency();
   if (config.threads == 0)
