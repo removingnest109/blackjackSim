@@ -27,7 +27,9 @@ comparison, and a **scriptable CLI** for batch experiments and automation.
 - Bet sizing as a raw amount or a percentage of the current bank (Kelly-style proportional betting).
 - Optional hi-lo card counting with true-count betting and a fully configurable bet curve.
 - Dealer-hits-soft-17 rule toggle.
-- Detailed statistics: wins, losses, blackjacks, splits, doubles, expected value, worst drawdown, and more.
+- Configurable strategy chart — load a custom decision chart from JSON or edit it live in the GUI.
+- Late or early surrender, off by default.
+- Detailed statistics: wins, losses, blackjacks, splits, doubles, surrenders, expected value, worst drawdown, and more.
 - Export runs to JSON to save, share, or reopen in the GUI.
 
 ## Quick start
@@ -76,6 +78,7 @@ different bankrolls can be compared fairly.
 - Switch between **raw bet sizing** and **percentage-of-bank** (proportional/Kelly-style) betting with a logarithmic slider.
 - Set a **minimum bet** that floors the final wager in every mode.
 - With card counting enabled, an **editable bet curve** lets you set the bet multiplier for each true-count bucket and design your own betting ramp.
+- Edit the **strategy chart** in place — a colour-coded hard/soft/pair grid where each cell cycles through hit, stand, double, split, and surrender — and toggle **late or early surrender**. Your edits persist across sessions.
 
 Every tracked statistic — hands, win/loss/draw rates, blackjacks, splits,
 doubles, EV per hand, average bet, worst drawdown, hands per second, and more —
@@ -120,6 +123,57 @@ the GUI can import.
 | `-e`, `--debt` | Allow negative bank (debt) | Disabled |
 | `-m`, `--multithread` | Enable multithreading | Disabled |
 | `-o`, `--save-json <file>` | Save the run to a JSON file for GUI import (suppresses the stats printout) | Disabled |
+| `--strategy <file>` | Load a custom strategy chart from a JSON file | Basic strategy |
+| `--surrender` | Allow late surrender | Disabled |
+| `--early-surrender` | Allow early surrender (implies `--surrender`) | Disabled |
+
+## Custom strategy charts
+
+The player's decisions come from a **strategy chart** that you can replace
+without touching the engine. The GUI ships an interactive editor — a
+colour-coded grid where each cell cycles through the five actions — and the CLI
+loads a chart from a JSON file with `--strategy <file>`. Both fall back to the
+built-in basic-strategy chart when no chart is supplied.
+
+A chart is a JSON object with three grids of single-letter action codes:
+
+| Key | Shape | Row index | Column index |
+|-----|-------|-----------|--------------|
+| `hard` | 22 × 12 | hand total | dealer upcard |
+| `soft` | 22 × 12 | hand total | dealer upcard |
+| `pair` | 12 × 12 | pair rank | dealer upcard |
+
+The column index is the dealer's upcard value (Ace = 11); columns 0–1 are unused
+padding. Each cell is one of:
+
+| Code | Action |
+|------|--------|
+| `H` | Hit |
+| `S` | Stand |
+| `D` | Double |
+| `P` | Split |
+| `R` | Surrender |
+
+```json
+{
+  "hard": [ ["S", "S", ... 12 entries per row ...], ... 22 rows ... ],
+  "soft": [ ... ],
+  "pair": [ ... ]
+}
+```
+
+Charts are validated on load: wrong grid dimensions or an unknown code are
+rejected and the previous chart is left unchanged, so a malformed file never
+half-applies. An `R` cell surrenders only when surrender is enabled and legal
+(the first two cards of a hand); everywhere else it falls back to hitting.
+
+### Surrender
+
+Surrender is off by default. Enable **late surrender** with `--surrender`, which
+resolves after the dealer checks for blackjack, or **early surrender** with
+`--early-surrender`, which resolves before the dealer's peek and so escapes a
+dealer blackjack. `--early-surrender` implies `--surrender`, and both are
+toggles in the GUI. Surrendered hands are tracked as their own statistic.
 
 ## How it works
 
