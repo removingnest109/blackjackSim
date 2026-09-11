@@ -31,6 +31,10 @@ void printGlobalVars() {
                            config.penetrationBeforeShuffle * 100);
   std::cout << std::format("Dealer {} on soft 17\n",
                            config.dealerHitSoft17 ? "hits" : "stands");
+  std::cout << std::format("Surrender: {}\n",
+                           !config.surrenderAllowed ? "Disabled"
+                           : config.earlySurrender  ? "Early"
+                                                    : "Late");
   std::cout << std::format("Card counting: {}\n",
                            config.cardCounting ? "Enabled" : "Disabled");
   std::cout << std::format("Negative bank: {}\n",
@@ -56,6 +60,7 @@ void printStats(const Stats &stats) {
     std::cout << std::format("{} Cards dealt\n", stats.cardsDealt);
     std::cout << std::format("{} Splits\n", stats.splits);
     std::cout << std::format("{} Doubles\n", stats.doubles);
+    std::cout << std::format("{} Surrenders\n", stats.surrenders);
     std::cout << std::format("Average player win percentage: {:g}%\n",
                              winPercent * 100);
     std::cout << std::format(

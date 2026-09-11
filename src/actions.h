@@ -1,11 +1,14 @@
 #pragma once
 
-enum class Action { Hit, Double, Split, Stand };
+// Appended, never reordered: existing chart literals use the named aliases
+// below, but keeping Surrender last also keeps the numeric enum values stable.
+enum class Action { Hit, Double, Split, Stand, Surrender };
 
 constexpr auto H = Action::Hit;
 constexpr auto D = Action::Double;
 constexpr auto P = Action::Split;
 constexpr auto S = Action::Stand;
+constexpr auto R = Action::Surrender;
 
 // A full basic-strategy chart. Charts are runtime data (see gStrategy) so they
 // can be overridden from a file or edited in the GUI; kBasicStrategy below is

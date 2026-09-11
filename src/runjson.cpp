@@ -20,6 +20,7 @@ nlohmann::json statsToJson(const Stats &st) {
           {"cardsDealt", st.cardsDealt},
           {"splits", st.splits},
           {"doubles", st.doubles},
+          {"surrenders", st.surrenders},
           {"totalBet", st.totalBet},
           {"bank", st.bank}};
 }
@@ -47,15 +48,20 @@ std::string describeRun() {
           : std::format("bet {}", config.defaultBetSize);
   const std::string maxBet =
       config.maximumBet == 0 ? "none" : std::to_string(config.maximumBet);
+  const char *surrender = !config.surrenderAllowed ? "none"
+                          : config.earlySurrender   ? "early"
+                                                    : "late";
 
   std::string result = std::format(
       "{} hands/thread, {} decks, bank {}, {}, min bet {}, max bet {},\n"
-      "pen {:.2f}, {}, counting {}, debt {}, {} thread{}, {} player{}/table",
+      "pen {:.2f}, {}, surrender {}, counting {}, debt {}, {} thread{}, {} "
+      "player{}/table",
       fmtInt(config.numberHands), config.numberDecks,
       fmtInt(config.startingBank), bet, config.minimumBet, maxBet,
       config.penetrationBeforeShuffle, config.dealerHitSoft17 ? "H17" : "S17",
-      config.cardCounting ? "on" : "off", config.debtAllowed ? "on" : "off",
-      config.threads, config.threads > 1 ? "s" : "", config.playersPerTable,
+      surrender, config.cardCounting ? "on" : "off",
+      config.debtAllowed ? "on" : "off", config.threads,
+      config.threads > 1 ? "s" : "", config.playersPerTable,
       config.playersPerTable > 1 ? "s" : "");
 
   if (config.cardCounting) {

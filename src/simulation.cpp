@@ -41,6 +41,21 @@ void simulatePlayerHands(std::vector<int> &deck, std::span<Hand> hands,
       case Action::Split:
         hands[handCount++] = split(deck, hand, stats);
         break;
+      case Action::Surrender:
+        // Late surrender: legal only as the first action on a fresh 2-card
+        // hand that has not been split (handCount == 1 rules out a split).
+        // When early surrender is on it was already resolved pre-peek in
+        // turnFull, so this path must not fire again. Any illegal position
+        // degrades to Hit ("R else H").
+        if (config.surrenderAllowed && !config.earlySurrender &&
+            hand.cardCount == 2 && handCount == 1) {
+          stats.bank += hand.bet / 2; // refund half the deducted bet
+          stats.surrenders++;
+          done = true;
+        } else {
+          drawCard(deck, hand, true, stats);
+        }
+        break;
       case Action::Stand:
       default:
         done = true;
@@ -60,6 +75,21 @@ void turnFull(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng,
 
   dealInitialCards(deck, hands[0], dealer, bet, stats);
   stats.hands++;
+
+  // Early surrender bails before the dealer peek, so it escapes a dealer
+  // blackjack. Resolved here, before detectBlackjacks, on the fresh 2-card
+  // opening hand only.
+  if (config.surrenderAllowed && config.earlySurrender) {
+    const int dealerUp = dealer.cards[0];
+    Hand &h = hands[0];
+    const bool isPair = h.cards[0] == h.cards[1];
+    if (getAction(h.value, dealerUp, h.isSoft(), isPair, h.cards[0]) ==
+        Action::Surrender) {
+      stats.bank += h.bet / 2; // refund half the deducted bet
+      stats.surrenders++;
+      return; // skip peek, player action, and resolution
+    }
+  }
 
   if (detectBlackjacks(hands[0], dealer, bet, stats))
     return;
@@ -102,6 +132,7 @@ static Stats aggregatePlayers(const std::vector<Stats> &players) {
     agg.draw            += p.draw;
     agg.splits          += p.splits;
     agg.doubles         += p.doubles;
+    agg.surrenders      += p.surrenders;
     agg.totalBet        += p.totalBet;
     agg.bank            += p.bank;
     agg.cardsDealt      += p.cardsDealt;

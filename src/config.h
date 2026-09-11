@@ -18,6 +18,8 @@ struct Config {
   unsigned int threads = 1;
   float penetrationBeforeShuffle = 0.75;
   bool dealerHitSoft17 = false;
+  bool surrenderAllowed = false;
+  bool earlySurrender = false; // only meaningful when surrenderAllowed
   bool cardCounting = false;
   int betCurve[kBetCurveSize] = {1, 2, 3, 4, 5, 6};
   bool verbose = false;
