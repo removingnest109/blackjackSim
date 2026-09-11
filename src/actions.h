@@ -1,5 +1,8 @@
 #pragma once
 
+#include <nlohmann/json_fwd.hpp>
+#include <string>
+
 // Appended, never reordered: existing chart literals use the named aliases
 // below, but keeping Surrender last also keeps the numeric enum values stable.
 enum class Action { Hit, Double, Split, Stand, Surrender };
@@ -107,3 +110,17 @@ inline Action getAction(int total, int dealerUp, bool isSoft, bool isPair,
     return gStrategy.soft[total][dealerUp];
   return gStrategy.hard[total][dealerUp];
 }
+
+// Serialize a chart to the JSON form documented in the README/handoff: three
+// grids ("hard", "soft", "pair") of single-letter cell codes
+// (H/S/D/P/R). Reused by both the CLI loader and the GUI editor.
+nlohmann::json strategyToJson(const StrategyTable &t);
+
+// Parse a chart from JSON into `out`. Validates exact grid dimensions
+// (22x12, 22x12, 12x12) and legal cell codes. On any error returns false,
+// logs to stderr, and leaves `out` untouched (never half-applies a chart).
+bool strategyFromJson(const nlohmann::json &j, StrategyTable &out);
+
+// Load a chart file into `out`. Same validation/atomicity guarantees as
+// strategyFromJson; also handles file-open and JSON-parse failures.
+bool loadStrategyFromJson(const std::string &path, StrategyTable &out);

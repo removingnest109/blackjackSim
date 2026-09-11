@@ -147,6 +147,7 @@ add_executable(blackjack_tests
         tests/test_runjson.cpp
         tests/test_strategy_table.cpp
         tests/test_surrender.cpp
+        tests/test_strategy_io.cpp
 )
 target_link_libraries(blackjack_tests PRIVATE blackjack_core GTest::gtest_main)
 target_compile_features(blackjack_tests PRIVATE cxx_std_20)

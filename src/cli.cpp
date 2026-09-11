@@ -48,7 +48,11 @@ void printHelp() {
          "  -e, --debt                     Enable negative bank\n"
          "  -m, --multithread              Enable multithreading\n"
          "  -o, --save-json <file>         Save the run to <file> as JSON for\n"
-         "                                 GUI import (suppresses stats output)\n";
+         "                                 GUI import (suppresses stats output)\n"
+         "      --strategy <file>          Load a custom strategy chart (JSON)\n"
+         "      --surrender                Allow late surrender\n"
+         "      --early-surrender          Allow early surrender (implies\n"
+         "                                 --surrender)\n";
 }
 
 void getArgs(const int argc, char **argv) {
@@ -70,6 +74,12 @@ void getArgs(const int argc, char **argv) {
         config.debtAllowed = true;
       else if (arg == "--multithread")
         config.multiThread = true;
+      else if (arg == "--surrender")
+        config.surrenderAllowed = true;
+      else if (arg == "--early-surrender") {
+        config.surrenderAllowed = true;
+        config.earlySurrender = true;
+      }
 
       else if (arg == "--save-json") {
         if (i + 1 >= argc) {
@@ -77,6 +87,14 @@ void getArgs(const int argc, char **argv) {
           std::exit(1);
         }
         config.saveJsonPath = argv[++i];
+      }
+
+      else if (arg == "--strategy") {
+        if (i + 1 >= argc) {
+          std::cerr << "Missing value for " << arg << "\n";
+          std::exit(1);
+        }
+        config.strategyPath = argv[++i];
       }
 
       else if (arg == "--hands" || arg == "--decks" || arg == "--bank" ||

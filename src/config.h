@@ -27,6 +27,7 @@ struct Config {
   bool multiThread = false;
   int playersPerTable = 1;
   std::string saveJsonPath; // when non-empty, write the run to this JSON file
+  std::string strategyPath; // when non-empty, load this JSON chart into gStrategy
 };
 
 extern Config config;
