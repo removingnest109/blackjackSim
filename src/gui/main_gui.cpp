@@ -1,6 +1,7 @@
 // Blackjack Simulator GUI
 // ImGui + ImPlot frontend over blackjack_core.
 
+#include "actions.h"
 #include "config.h"
 #include "monitor.h"
 #include "runjson.h"
@@ -26,6 +27,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
+#include <functional>
 #include <future>
 #include <memory>
 #include <string>
@@ -93,10 +95,13 @@ struct GuiParams {
   float penetration = 0.5f;
   int threads = 1;
   bool dealerHitSoft17 = false;
+  bool surrenderAllowed = false;
+  bool earlySurrender = false;
   bool cardCounting = false;
   bool debtAllowed = false;
   int betCurve[kBetCurveSize] = {1, 2, 3, 4, 5, 6};
   int playersPerTable = 1;
+  StrategyTable strategy = kBasicStrategy;
 };
 
 // Cached result of the per-frame (y - startBank) / normalize transform.
@@ -202,12 +207,16 @@ std::string describeRun(const GuiParams &p) {
     std::snprintf(bet, sizeof(bet), "bet %.2f%% of bank", p.betPercent);
   else
     std::snprintf(bet, sizeof(bet), "bet %d", p.bet);
+  const char *surrender = !p.surrenderAllowed ? "none"
+                          : p.earlySurrender   ? "early"
+                                               : "late";
   std::snprintf(buf, sizeof(buf),
                 "%s hands/thread, %d decks, bank %s, %s, min bet %d, max bet %s,\n"
-                "pen %.2f, %s, counting %s, debt %s, %d thread%s, %d player%s/table",
+                "pen %.2f, %s, surrender %s, counting %s, debt %s, %d thread%s, "
+                "%d player%s/table",
                 fmtInt(p.hands).c_str(), p.decks, fmtInt(p.bank).c_str(), bet,
                 p.minBet, p.maxBet == 0 ? "none" : std::to_string(p.maxBet).c_str(),
-                p.penetration, p.dealerHitSoft17 ? "H17" : "S17",
+                p.penetration, p.dealerHitSoft17 ? "H17" : "S17", surrender,
                 p.cardCounting ? "on" : "off", p.debtAllowed ? "on" : "off",
                 p.threads, p.threads > 1 ? "s" : "",
                 p.playersPerTable, p.playersPerTable > 1 ? "s" : "");
@@ -236,6 +245,7 @@ Stats statsFromJson(const nlohmann::json &j) {
   st.cardsDealt = j.value("cardsDealt", int64_t(0));
   st.splits = j.value("splits", int64_t(0));
   st.doubles = j.value("doubles", int64_t(0));
+  st.surrenders = j.value("surrenders", int64_t(0));
   st.totalBet = j.value("totalBet", int64_t(0));
   st.bank = j.value("bank", int64_t(0));
   return st;
@@ -256,9 +266,12 @@ void saveSettings(const GuiParams &p) {
   j["penetration"]    = p.penetration;
   j["threads"]        = p.threads;
   j["dealerHitSoft17"]= p.dealerHitSoft17;
+  j["surrenderAllowed"]= p.surrenderAllowed;
+  j["earlySurrender"] = p.earlySurrender;
   j["cardCounting"]   = p.cardCounting;
   j["debtAllowed"]    = p.debtAllowed;
   j["playersPerTable"]= p.playersPerTable;
+  j["strategy"]       = strategyToJson(p.strategy);
   nlohmann::json curve = nlohmann::json::array();
   for (int i = 0; i < kBetCurveSize; ++i)
     curve.push_back(p.betCurve[i]);
@@ -286,9 +299,15 @@ void loadSettings(GuiParams &p) {
     p.penetration    = j.value("penetration",    p.penetration);
     p.threads        = j.value("threads",        p.threads);
     p.dealerHitSoft17= j.value("dealerHitSoft17",p.dealerHitSoft17);
+    p.surrenderAllowed= j.value("surrenderAllowed",p.surrenderAllowed);
+    p.earlySurrender = j.value("earlySurrender", p.earlySurrender);
     p.cardCounting   = j.value("cardCounting",   p.cardCounting);
     p.debtAllowed    = j.value("debtAllowed",    p.debtAllowed);
     p.playersPerTable= j.value("playersPerTable",p.playersPerTable);
+    // Leave the basic-strategy default in place if the stored chart is absent
+    // or malformed (strategyFromJson only writes p.strategy on success).
+    if (j.contains("strategy"))
+      strategyFromJson(j["strategy"], p.strategy);
     if (j.contains("betCurve") && j["betCurve"].is_array()) {
       const auto &curve = j["betCurve"];
       for (int i = 0; i < kBetCurveSize && i < static_cast<int>(curve.size()); ++i)
@@ -421,6 +440,8 @@ void startRun(AppState &s) {
   config.maximumBet = s.params.maxBet;
   config.penetrationBeforeShuffle = s.params.penetration;
   config.dealerHitSoft17 = s.params.dealerHitSoft17;
+  config.surrenderAllowed = s.params.surrenderAllowed;
+  config.earlySurrender = s.params.earlySurrender;
   config.cardCounting = s.params.cardCounting;
   for (int i = 0; i < kBetCurveSize; ++i)
     config.betCurve[i] = s.params.betCurve[i];
@@ -428,6 +449,10 @@ void startRun(AppState &s) {
   config.threads = static_cast<unsigned int>(s.params.threads);
   config.multiThread = s.params.threads > 1;
   config.playersPerTable = s.params.playersPerTable;
+
+  // Publish the edited chart to the global consulted by the workers. Set once
+  // here, before runSim launches any thread (same lifecycle as config).
+  gStrategy = s.params.strategy;
 
   s.runParams = s.params;
   const int N = std::max(1, s.params.playersPerTable);
@@ -548,6 +573,138 @@ void sectionHeader(const char *label) {
   ImGui::PopFont();
 }
 
+// ---------------------------------------------------------------------------
+// Strategy chart editor. Each cell is a colour-coded button that cycles
+// H -> S -> D -> P -> R on click. Grids are laid out [row][dealerUp] to match
+// the StrategyTable memory layout; the unused padding rows/columns are hidden.
+// ---------------------------------------------------------------------------
+
+const char *actionLabel(Action a) {
+  switch (a) {
+  case Action::Hit:       return "H";
+  case Action::Double:    return "D";
+  case Action::Split:     return "P";
+  case Action::Stand:     return "S";
+  case Action::Surrender: return "R";
+  }
+  return "S";
+}
+
+ImVec4 actionColor(Action a) {
+  switch (a) {
+  case Action::Hit:       return rgb(198, 138, 63);  // amber
+  case Action::Stand:     return rgb(63, 130, 84);   // green
+  case Action::Double:    return rgb(80, 118, 170);  // blue
+  case Action::Split:     return rgb(146, 102, 176); // purple
+  case Action::Surrender: return rgb(188, 84, 84);   // red
+  }
+  return rgb(80, 80, 80);
+}
+
+Action cycleAction(Action a) {
+  switch (a) {
+  case Action::Hit:       return Action::Stand;
+  case Action::Stand:     return Action::Double;
+  case Action::Double:    return Action::Split;
+  case Action::Split:     return Action::Surrender;
+  case Action::Surrender: return Action::Hit;
+  }
+  return Action::Hit;
+}
+
+// Render one editable grid. Rows firstRow..lastRow inclusive; columns are the
+// dealer upcards 2..10 then Ace (StrategyTable columns 2..11). rowLabel formats
+// the leading header cell for each row.
+void editStrategyGrid(const char *id, Action (*grid)[12], int firstRow,
+                      int lastRow,
+                      const std::function<std::string(int)> &rowLabel) {
+  const ImGuiTableFlags flags =
+      ImGuiTableFlags_Borders | ImGuiTableFlags_SizingFixedFit;
+  if (!ImGui::BeginTable(id, 11, flags))
+    return;
+  ImGui::TableSetupColumn("");
+  for (int c = 2; c <= 11; ++c)
+    ImGui::TableSetupColumn(c <= 10 ? std::to_string(c).c_str() : "A");
+  ImGui::TableHeadersRow();
+  for (int r = firstRow; r <= lastRow; ++r) {
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    ImGui::TextUnformatted(rowLabel(r).c_str());
+    for (int c = 2; c <= 11; ++c) {
+      ImGui::TableNextColumn();
+      Action &cell = grid[r][c];
+      ImGui::PushID(r * 12 + c);
+      const ImVec4 col = actionColor(cell);
+      ImGui::PushStyleColor(ImGuiCol_Button, col);
+      ImGui::PushStyleColor(ImGuiCol_ButtonHovered, shade(col, 1.2f));
+      ImGui::PushStyleColor(ImGuiCol_ButtonActive, shade(col, 0.85f));
+      ImGui::PushStyleColor(ImGuiCol_Text, rgb(16, 19, 25));
+      if (ImGui::Button(actionLabel(cell), ImVec2(22, 0)))
+        cell = cycleAction(cell);
+      ImGui::PopStyleColor(4);
+      ImGui::PopID();
+    }
+  }
+  ImGui::EndTable();
+}
+
+void drawStrategyEditor(AppState &s) {
+  if (!ImGui::TreeNodeEx("Strategy chart",
+                         ImGuiTreeNodeFlags_SpanAvailWidth))
+    return;
+  ImGui::TextDisabled("Click a cell to cycle H -> S -> D -> P -> R.");
+  ImGui::SetItemTooltip("H Hit   S Stand   D Double   P Split   R Surrender\n"
+                        "(R falls back to Hit where surrender is illegal.)");
+
+  StrategyTable &t = s.params.strategy;
+
+  if (ImGui::TreeNodeEx("Hard totals", ImGuiTreeNodeFlags_DefaultOpen)) {
+    editStrategyGrid("hardgrid", t.hard, 5, 21,
+                     [](int r) { return std::to_string(r); });
+    ImGui::TreePop();
+  }
+  if (ImGui::TreeNodeEx("Soft totals", ImGuiTreeNodeFlags_DefaultOpen)) {
+    editStrategyGrid("softgrid", t.soft, 13, 21, [](int r) {
+      // Soft total r corresponds to Ace + (r - 11).
+      return "A" + std::to_string(r - 11);
+    });
+    ImGui::TreePop();
+  }
+  if (ImGui::TreeNodeEx("Pairs", ImGuiTreeNodeFlags_DefaultOpen)) {
+    editStrategyGrid("pairgrid", t.pair, 2, 11, [](int r) {
+      return r == 11 ? std::string("A,A")
+                     : std::to_string(r) + "," + std::to_string(r);
+    });
+    ImGui::TreePop();
+  }
+
+  ImGui::Spacing();
+  if (ImGui::Button("Reset to basic strategy"))
+    s.params.strategy = kBasicStrategy;
+  ImGui::SameLine();
+  if (ImGui::Button("Load chart...")) {
+    const std::vector<std::string> sel =
+        pfd::open_file("Load strategy chart", "",
+                       {"JSON files (*.json)", "*.json", "All files", "*"})
+            .result();
+    if (!sel.empty())
+      loadStrategyFromJson(sel.front(), s.params.strategy);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Save chart...")) {
+    const std::string dest =
+        pfd::save_file("Save strategy chart", "strategy.json",
+                       {"JSON files (*.json)", "*.json", "All files", "*"})
+            .result();
+    if (!dest.empty()) {
+      std::ofstream f(dest.c_str());
+      if (f)
+        f << strategyToJson(s.params.strategy).dump(2);
+    }
+  }
+  ImGui::TreePop();
+}
+
 void drawParamsContent(AppState &s) {
   ImGui::BeginDisabled(s.running);
   ImGui::PushItemWidth(-FLT_MIN);
@@ -623,6 +780,20 @@ void drawParamsContent(AppState &s) {
   ImGui::Checkbox("Dealer hits soft 17", &s.params.dealerHitSoft17);
   ImGui::SetItemTooltip("When enabled, the dealer must hit on a soft 17 (Ace + 6).\n"
                         "This rule increases the house edge slightly.");
+  ImGui::Checkbox("Allow surrender", &s.params.surrenderAllowed);
+  ImGui::SetItemTooltip(
+      "Honour Surrender (R) cells in the strategy chart.\n"
+      "When off, R cells are played as Hit.");
+  if (s.params.surrenderAllowed) {
+    ImGui::Indent();
+    ImGui::Checkbox("Early surrender", &s.params.earlySurrender);
+    ImGui::SetItemTooltip(
+        "Early: surrender is resolved BEFORE the dealer peeks for blackjack,\n"
+        "so it escapes a dealer natural (loses only half the bet).\n"
+        "Late (unchecked): surrender is offered only after the peek, so a\n"
+        "dealer blackjack takes the full bet first.");
+    ImGui::Unindent();
+  }
   ImGui::Checkbox("Card counting", &s.params.cardCounting);
   ImGui::SetItemTooltip("Simulate Hi-Lo card counting with bet spreading.\n"
                         "The bet multiplier table below scales the wager by true count.");
@@ -655,6 +826,9 @@ void drawParamsContent(AppState &s) {
                         "More players consume the shoe faster, affecting penetration\n"
                         "and true count for card counters.");
   ImGui::SliderInt("##players", &s.params.playersPerTable, 1, 7);
+
+  ImGui::Spacing();
+  drawStrategyEditor(s);
 
   ImGui::PopItemWidth();
   ImGui::EndDisabled();
@@ -977,8 +1151,8 @@ void drawPlot(AppState &s, float height) {
   s.plotMax = ImGui::GetItemRectMax();
 }
 
-// 29 label/value pairs, laid out 3 pairs per table row.
-enum { kStatPairs = 29, kStatPairsPerRow = 3 };
+// 30 label/value pairs, laid out 3 pairs per table row.
+enum { kStatPairs = 30, kStatPairsPerRow = 3 };
 
 float statsPanelHeight(const AppState &s) {
   const ImGuiStyle &style = ImGui::GetStyle();
@@ -1110,6 +1284,7 @@ void drawStats(AppState &s, float height) {
         {"Dealer BJ rate", fmtPct(divide(st.dealerBlackjacks, st.hands))});
     items.push_back({"Splits", fmtInt(st.splits)});
     items.push_back({"Doubles", fmtInt(st.doubles)});
+    items.push_back({"Surrenders", fmtInt(st.surrenders)});
     items.push_back({"Shuffles", fmtInt(st.shuffles)});
     items.push_back({"Cards dealt", fmtInt(st.cardsDealt)});
     items.push_back({"Total bank", fmtInt(st.bank)});
