@@ -618,17 +618,29 @@ Action cycleAction(Action a) {
 void editStrategyGrid(const char *id, Action (*grid)[12], int firstRow,
                       int lastRow,
                       const std::function<std::string(int)> &rowLabel) {
+  // Stretch the 10 dealer-upcard columns to share whatever width the panel
+  // gives us so every column stays visible in the narrow sidebar; the row
+  // label column is fixed and wide enough for the longest label ("10,10").
   const ImGuiTableFlags flags =
-      ImGuiTableFlags_Borders | ImGuiTableFlags_SizingFixedFit;
-  if (!ImGui::BeginTable(id, 11, flags))
+      ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchSame |
+      ImGuiTableFlags_NoHostExtendX;
+  const float labelW = ImGui::CalcTextSize("10,10").x + 8.0f;
+  // Tighten padding so the single-letter buttons aren't cramped by the cell.
+  ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(2.0f, 2.0f));
+  ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.0f, 3.0f));
+  if (!ImGui::BeginTable(id, 11, flags)) {
+    ImGui::PopStyleVar(2);
     return;
-  ImGui::TableSetupColumn("");
+  }
+  ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, labelW);
   for (int c = 2; c <= 11; ++c)
-    ImGui::TableSetupColumn(c <= 10 ? std::to_string(c).c_str() : "A");
+    ImGui::TableSetupColumn(c <= 10 ? std::to_string(c).c_str() : "A",
+                            ImGuiTableColumnFlags_WidthStretch);
   ImGui::TableHeadersRow();
   for (int r = firstRow; r <= lastRow; ++r) {
     ImGui::TableNextRow();
     ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(rowLabel(r).c_str());
     for (int c = 2; c <= 11; ++c) {
       ImGui::TableNextColumn();
@@ -639,49 +651,50 @@ void editStrategyGrid(const char *id, Action (*grid)[12], int firstRow,
       ImGui::PushStyleColor(ImGuiCol_ButtonHovered, shade(col, 1.2f));
       ImGui::PushStyleColor(ImGuiCol_ButtonActive, shade(col, 0.85f));
       ImGui::PushStyleColor(ImGuiCol_Text, rgb(16, 19, 25));
-      if (ImGui::Button(actionLabel(cell), ImVec2(22, 0)))
+      // -FLT_MIN width makes each button fill its stretched column.
+      if (ImGui::Button(actionLabel(cell), ImVec2(-FLT_MIN, 0)))
         cell = cycleAction(cell);
       ImGui::PopStyleColor(4);
       ImGui::PopID();
     }
   }
   ImGui::EndTable();
+  ImGui::PopStyleVar(2);
 }
 
 void drawStrategyEditor(AppState &s) {
-  if (!ImGui::TreeNodeEx("Strategy chart",
-                         ImGuiTreeNodeFlags_SpanAvailWidth))
+  if (!ImGui::TreeNodeEx("Strategy chart", ImGuiTreeNodeFlags_SpanAvailWidth))
     return;
+  // TreeNode indents its body; reclaim that space so the wide 11-column grids
+  // fit the narrow sidebar. Balanced by the matching Indent before TreePop.
+  const float indent = ImGui::GetStyle().IndentSpacing;
+  ImGui::Unindent(indent);
+
   ImGui::TextDisabled("Click a cell to cycle H -> S -> D -> P -> R.");
   ImGui::SetItemTooltip("H Hit   S Stand   D Double   P Split   R Surrender\n"
                         "(R falls back to Hit where surrender is illegal.)");
 
   StrategyTable &t = s.params.strategy;
 
-  if (ImGui::TreeNodeEx("Hard totals", ImGuiTreeNodeFlags_DefaultOpen)) {
-    editStrategyGrid("hardgrid", t.hard, 5, 21,
-                     [](int r) { return std::to_string(r); });
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Soft totals", ImGuiTreeNodeFlags_DefaultOpen)) {
-    editStrategyGrid("softgrid", t.soft, 13, 21, [](int r) {
-      // Soft total r corresponds to Ace + (r - 11).
-      return "A" + std::to_string(r - 11);
-    });
-    ImGui::TreePop();
-  }
-  if (ImGui::TreeNodeEx("Pairs", ImGuiTreeNodeFlags_DefaultOpen)) {
-    editStrategyGrid("pairgrid", t.pair, 2, 11, [](int r) {
-      return r == 11 ? std::string("A,A")
-                     : std::to_string(r) + "," + std::to_string(r);
-    });
-    ImGui::TreePop();
-  }
+  ImGui::SeparatorText("Hard totals");
+  editStrategyGrid("hardgrid", t.hard, 5, 21,
+                   [](int r) { return std::to_string(r); });
+
+  ImGui::SeparatorText("Soft totals");
+  editStrategyGrid("softgrid", t.soft, 13, 21, [](int r) {
+    // Soft total r corresponds to Ace + (r - 11).
+    return "A" + std::to_string(r - 11);
+  });
+
+  ImGui::SeparatorText("Pairs");
+  editStrategyGrid("pairgrid", t.pair, 2, 11, [](int r) {
+    return r == 11 ? std::string("A,A")
+                   : std::to_string(r) + "," + std::to_string(r);
+  });
 
   ImGui::Spacing();
-  if (ImGui::Button("Reset to basic strategy"))
+  if (ImGui::Button("Reset to basic strategy", ImVec2(-FLT_MIN, 0)))
     s.params.strategy = kBasicStrategy;
-  ImGui::SameLine();
   if (ImGui::Button("Load chart...")) {
     const std::vector<std::string> sel =
         pfd::open_file("Load strategy chart", "",
@@ -702,6 +715,8 @@ void drawStrategyEditor(AppState &s) {
         f << strategyToJson(s.params.strategy).dump(2);
     }
   }
+
+  ImGui::Indent(indent);
   ImGui::TreePop();
 }
 
