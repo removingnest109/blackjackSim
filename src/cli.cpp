@@ -46,9 +46,11 @@ void printHelp() {
          "  -s, --dealer-hit-soft-17       Dealer hits soft 17\n"
          "  -c, --card-counting            Enable card counting\n"
          "  -e, --debt                     Enable negative bank\n"
-         "  -m, --multithread              Enable multithreading\n"
          "  -o, --save-json <file>         Save the run to <file> as JSON for\n"
          "                                 GUI import (suppresses stats output)\n"
+         "      --tables <num>             Number of tables to simulate in\n"
+         "                                 parallel (default 1)\n"
+         "      --players <num>            Players per table (default 1)\n"
          "      --strategy <file>          Load a custom strategy chart (JSON)\n"
          "      --surrender                Allow late surrender\n"
          "      --early-surrender          Allow early surrender (implies\n"
@@ -72,8 +74,6 @@ void getArgs(const int argc, char **argv) {
         config.cardCounting = true;
       else if (arg == "--debt")
         config.debtAllowed = true;
-      else if (arg == "--multithread")
-        config.multiThread = true;
       else if (arg == "--surrender")
         config.surrenderAllowed = true;
       else if (arg == "--early-surrender") {
@@ -95,6 +95,22 @@ void getArgs(const int argc, char **argv) {
           std::exit(1);
         }
         config.strategyPath = argv[++i];
+      }
+
+      else if (arg == "--tables" || arg == "--players") {
+        if (i + 1 >= argc) {
+          std::cerr << "Missing value for " << arg << "\n";
+          std::exit(1);
+        }
+        const auto v = parseInt(argv[++i]);
+        if (!v || *v < 1) {
+          std::cerr << "Invalid value for " << arg << "\n";
+          std::exit(1);
+        }
+        if (arg == "--tables")
+          config.threads = static_cast<unsigned int>(*v);
+        else
+          config.playersPerTable = *v;
       }
 
       else if (arg == "--hands" || arg == "--decks" || arg == "--bank" ||
@@ -160,9 +176,6 @@ void getArgs(const int argc, char **argv) {
           break;
         case 'e':
           config.debtAllowed = true;
-          break;
-        case 'm':
-          config.multiThread = true;
           break;
 
         case 'o': {

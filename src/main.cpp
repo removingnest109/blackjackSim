@@ -8,7 +8,6 @@
 #include "stats.h"
 #include <chrono>
 #include <iostream>
-#include <thread>
 
 int main(const int argc, char **argv) {
   getArgs(argc, argv);
@@ -18,10 +17,11 @@ int main(const int argc, char **argv) {
               << "\"\n";
     return 1;
   }
-  if (config.multiThread)
-    config.threads = std::thread::hardware_concurrency();
   if (config.threads == 0)
     config.threads = 1;
+  if (config.playersPerTable < 1)
+    config.playersPerTable = 1;
+  config.multiThread = config.threads > 1;
   if (config.verbose)
     printGlobalVars();
 

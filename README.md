@@ -22,7 +22,7 @@ comparison, and a **scriptable CLI** for batch experiments and automation.
 
 ## Features
 
-- Simulate millions of hands per run, single-threaded or across every CPU core.
+- Simulate millions of hands per run across any number of independent tables in parallel, with configurable players per table.
 - Configurable decks, starting bank, default bet, table minimum, and shuffle penetration.
 - Bet sizing as a raw amount or a percentage of the current bank (Kelly-style proportional betting).
 - Optional hi-lo card counting with true-count betting and a fully configurable bet curve.
@@ -52,8 +52,8 @@ Grab a prebuilt release — no compiler or dependencies required.
 **Run a quick CLI simulation:**
 
 ```bash
-./blackjack -vmc -n 1000000
-# verbose, multithreaded, card counting, 1,000,000 hands per thread
+./blackjack -vc --tables 8 -n 1000000
+# verbose, card counting, 8 parallel tables, 1,000,000 hands per table
 ```
 
 ## The interactive GUI
@@ -100,18 +100,18 @@ automation, and feeding results back into the GUI via JSON.
 ![CLI version](screenshots/cli.png)
 
 ```bash
-./blackjack -vmc -n 1000000
-# Equivalent to: verbose, multithread, card counting, 1,000,000 hands per thread
+./blackjack -vc --tables 8 -n 1000000
+# Equivalent to: verbose, card counting, 8 parallel tables, 1,000,000 hands per table
 ```
 
-Short flags can be combined (`-vmc`), and `--save-json <file>` writes a run that
+Short flags can be combined (`-vc`), and `--save-json <file>` writes a run that
 the GUI can import.
 
 | Flag | Description | Default |
 |------|-------------|---------|
 | `-h`, `--help` | Show help message | - |
 | `-v`, `--verbose` | Enable verbose mode (prints detailed stats) | Disabled |
-| `-n`, `--hands <num>` | Number of hands per thread | 10,000,000 |
+| `-n`, `--hands <num>` | Number of hands per table | 10,000,000 |
 | `-d`, `--decks <num>` | Number of decks in shoe | 6 |
 | `-b`, `--bank <amount>` | Starting bank | 100,000 |
 | `-t`, `--bet <amount>` | Default bet size | 10 |
@@ -121,8 +121,9 @@ the GUI can import.
 | `-s`, `--dealer-hit-soft-17` | Dealer hits on soft 17 | Disabled |
 | `-c`, `--card-counting` | Enable card counting | Disabled |
 | `-e`, `--debt` | Allow negative bank (debt) | Disabled |
-| `-m`, `--multithread` | Enable multithreading | Disabled |
 | `-o`, `--save-json <file>` | Save the run to a JSON file for GUI import (suppresses the stats printout) | Disabled |
+| `--tables <num>` | Number of independent tables to simulate in parallel | 1 |
+| `--players <num>` | Players per table (share one shoe and dealer) | 1 |
 | `--strategy <file>` | Load a custom strategy chart from a JSON file | Basic strategy |
 | `--surrender` | Allow late surrender | Disabled |
 | `--early-surrender` | Allow early surrender (implies `--surrender`) | Disabled |
