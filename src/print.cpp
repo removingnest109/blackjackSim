@@ -4,6 +4,7 @@
 #include "stats.h"
 #include <format>
 #include <iostream>
+#include <string>
 
 static double divide(const int64_t numerator, const int64_t denominator) {
   return denominator == 0 ? 0.0
@@ -17,6 +18,7 @@ void printGlobalVars() {
                            config.multiThread ? "Enabled" : "Disabled");
   if (config.multiThread)
     std::cout << std::format("Number of threads: {}\n", config.threads);
+  std::cout << std::format("Players per table: {}\n", config.playersPerTable);
   std::cout << std::format("Number of hands per thread: {}\n",
                            config.numberHands);
   std::cout << std::format("Starting bank: {}\n", config.startingBank);
@@ -26,6 +28,9 @@ void printGlobalVars() {
   else
     std::cout << std::format("Default bet size: {}\n", config.defaultBetSize);
   std::cout << std::format("Minimum bet: {}\n", config.minimumBet);
+  const std::string maxBetStr =
+      config.maximumBet == 0 ? "none" : std::to_string(config.maximumBet);
+  std::cout << std::format("Maximum bet: {}\n", maxBetStr);
   std::cout << std::format("Number of decks: {}\n", config.numberDecks);
   std::cout << std::format("Penetration before shuffle: {:g}%\n",
                            config.penetrationBeforeShuffle * 100);

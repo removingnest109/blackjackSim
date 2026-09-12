@@ -42,6 +42,8 @@ void printHelp() {
          "                                 instead of a raw bet size\n"
          "  -i, --min-bet <amount>         Minimum bet, floors the final bet\n"
          "                                 in all modes (default 1)\n"
+         "      --max-bet <amount>         Maximum bet, caps the final bet\n"
+         "                                 (0 = no limit, default 0)\n"
          "  -p, --penetration <0.0-1.0>    Shuffle penetration (default 0.75)\n"
          "  -s, --dealer-hit-soft-17       Dealer hits soft 17\n"
          "  -c, --card-counting            Enable card counting\n"
@@ -115,7 +117,8 @@ void getArgs(const int argc, char **argv) {
 
       else if (arg == "--hands" || arg == "--decks" || arg == "--bank" ||
                arg == "--bet" || arg == "--penetration" ||
-               arg == "--bet-percent" || arg == "--min-bet") {
+               arg == "--bet-percent" || arg == "--min-bet" ||
+               arg == "--max-bet") {
         if (i + 1 >= argc) {
           std::cerr << "Missing value for " << arg << "\n";
           std::exit(1);
@@ -149,6 +152,8 @@ void getArgs(const int argc, char **argv) {
             ok = false;
         } else if (arg == "--min-bet")
           asInt(config.minimumBet);
+        else if (arg == "--max-bet")
+          asInt(config.maximumBet);
         if (!ok) {
           std::cerr << "Invalid value for " << arg << "\n";
           std::exit(1);

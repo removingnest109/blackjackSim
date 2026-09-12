@@ -117,6 +117,7 @@ the GUI can import.
 | `-t`, `--bet <amount>` | Default bet size | 10 |
 | `-r`, `--bet-percent <0.0-100.0>` | Bet a percentage of current bank instead of a raw bet size | Disabled |
 | `-i`, `--min-bet <amount>` | Minimum bet, floors the final bet in all modes | 1 |
+| `--max-bet <amount>` | Maximum bet, caps the final bet (0 = no limit) | 0 |
 | `-p`, `--penetration <0.0-1.0>` | Shuffle penetration before reshuffle | 0.75 |
 | `-s`, `--dealer-hit-soft-17` | Dealer hits on soft 17 | Disabled |
 | `-c`, `--card-counting` | Enable card counting | Disabled |
