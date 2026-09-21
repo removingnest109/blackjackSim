@@ -25,6 +25,10 @@ struct Config {
   bool verbose = false;
   bool debtAllowed = false;
   bool multiThread = false;
+  // Throughput construct, not a table model: each sim player plays their own
+  // dealer hand against the same shoe, which is the right estimator for
+  // per-hand EV but models no real table (no shared dealer hand, no
+  // table-level variance/risk).
   int playersPerTable = 1;
   std::string saveJsonPath; // when non-empty, write the run to this JSON file
   std::string strategyPath; // when non-empty, load this JSON chart into gStrategy

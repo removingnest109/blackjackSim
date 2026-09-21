@@ -12,6 +12,7 @@ void drawCard(std::vector<int> &deck, Hand &hand, const bool &visible,
 
   if (config.cardCounting) {
     stats.runningCount += visible * countTable[card];
+    getTrueCount(deck, stats);
   }
 
   hand.cards[hand.cardCount++] = card;
@@ -169,19 +170,24 @@ bool isBlackjack(const Hand &hand) {
 }
 
 bool detectBlackjacks(const Hand &handPlayer, const Hand &handDealer,
-                      const int64_t &bet, Stats &stats) {
+                      const int64_t &bet,
+                      const std::vector<int> &deck, Stats &stats) {
   const bool playerBJ = isBlackjack(handPlayer);
   const bool dealerBJ = isBlackjack(handDealer);
   const int hole = handDealer.cards[1];
 
   if (playerBJ && dealerBJ) {
     stats.runningCount += countTable[hole];
+    if (config.cardCounting)
+      getTrueCount(deck, stats);
     stats.draw++;
     stats.bank += bet; // return original bet
     return true;
   }
   if (dealerBJ) {
     stats.runningCount += countTable[hole];
+    if (config.cardCounting)
+      getTrueCount(deck, stats);
     stats.dealerWins++;
     stats.dealerBlackjacks++;
     return true;
@@ -197,6 +203,13 @@ bool detectBlackjacks(const Hand &handPlayer, const Hand &handDealer,
 }
 
 void playDealerHand(std::vector<int> &deck, Hand &hand, Stats &stats) {
+  // Reveal the hole card. It was dealt face-down (uncounted); the dealer-BJ
+  // path returns from turnFull before reaching here, so this counts it
+  // exactly once on the non-BJ path.
+  if (config.cardCounting) {
+    stats.runningCount += countTable[hand.cards[1]];
+    getTrueCount(deck, stats);
+  }
   while (hand.value < 17 ||
          (config.dealerHitSoft17 && hand.value == 17 && hand.aceCount > 0)) {
     drawCard(deck, hand, true, stats);

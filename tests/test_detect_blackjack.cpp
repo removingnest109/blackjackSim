@@ -2,6 +2,8 @@
 #include "stats.h"
 #include <gtest/gtest.h>
 
+#include <vector>
+
 TEST(DetectBlackjack, DetectsNaturalBlackjackOnly) {
   Hand h;
   h.cardCount = 2;
@@ -20,7 +22,9 @@ TEST(DetectBlackjack, DetectsBothBlackjacksWithBetReturned) {
   hp.value = 21;
   hd.cardCount = 2;
   hd.value = 21;
-  EXPECT_TRUE(detectBlackjacks(hp, hd, 100, s) && s.draw > 0 && s.bank == 100);
+  const std::vector<int> deck(52, 7);
+  EXPECT_TRUE(detectBlackjacks(hp, hd, 100, deck, s) && s.draw > 0 &&
+              s.bank == 100);
 }
 
 TEST(DetectBlackjack, DetectsDealerBlackjack) {
@@ -30,8 +34,9 @@ TEST(DetectBlackjack, DetectsDealerBlackjack) {
   hp.value = 20;
   hd.cardCount = 2;
   hd.value = 21;
-  EXPECT_TRUE(detectBlackjacks(hp, hd, 100, s) && s.dealerBlackjacks > 0 &&
-              s.bank == 0);
+  const std::vector<int> deck(52, 7);
+  EXPECT_TRUE(detectBlackjacks(hp, hd, 100, deck, s) &&
+              s.dealerBlackjacks > 0 && s.bank == 0);
 }
 
 TEST(DetectBlackjack, DetectsPlayerBlackjackWithPayout) {
@@ -41,6 +46,7 @@ TEST(DetectBlackjack, DetectsPlayerBlackjackWithPayout) {
   hp.value = 21;
   hd.cardCount = 2;
   hd.value = 20;
-  EXPECT_TRUE(detectBlackjacks(hp, hd, 100, s) && s.playerBlackjacks > 0 &&
-              s.bank == 250);
+  const std::vector<int> deck(52, 7);
+  EXPECT_TRUE(detectBlackjacks(hp, hd, 100, deck, s) &&
+              s.playerBlackjacks > 0 && s.bank == 250);
 }

@@ -91,7 +91,7 @@ void turnFull(std::vector<int> &deck, Hand &dealer, std::mt19937 &rng,
     }
   }
 
-  if (detectBlackjacks(hands[0], dealer, bet, stats))
+  if (detectBlackjacks(hands[0], dealer, bet, deck, stats))
     return;
 
   simulatePlayerHands(deck, hands, handCount, dealer, stats);

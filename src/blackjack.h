@@ -24,6 +24,7 @@ int64_t betFromTrueCount(const Stats &stats);
 int64_t computeBet(const Stats &stats);
 bool isBlackjack(const Hand &hand);
 bool detectBlackjacks(const Hand &handPlayer, const Hand &handDealer,
-                      const int64_t &bet, Stats &stats);
+                      const int64_t &bet,
+                      const std::vector<int> &deck, Stats &stats);
 void playDealerHand(std::vector<int> &deck, Hand &hand, Stats &stats);
 void resolveHand(const Hand &player, const Hand &dealer, Stats &stats);
