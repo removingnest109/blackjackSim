@@ -54,14 +54,14 @@ std::string describeRun() {
 
   std::string result = std::format(
       "{} hands/thread, {} decks, bank {}, {}, min bet {}, max bet {},\n"
-      "pen {:.2f}, {}, surrender {}, counting {}, debt {}, {} thread{}, {} "
-      "player{}/table",
+      "pen {:.2f}, {}, BJ {}, surrender {}, counting {}, debt {}, {} "
+      "thread{}, {} player{}/table",
       fmtInt(config.numberHands), config.numberDecks,
       fmtInt(config.startingBank), bet, config.minimumBet, maxBet,
       config.penetrationBeforeShuffle, config.dealerHitSoft17 ? "H17" : "S17",
-      surrender, config.cardCounting ? "on" : "off",
-      config.debtAllowed ? "on" : "off", config.threads,
-      config.threads > 1 ? "s" : "", config.playersPerTable,
+      blackjackPayoutLabel(config.blackjackPayout), surrender,
+      config.cardCounting ? "on" : "off", config.debtAllowed ? "on" : "off",
+      config.threads, config.threads > 1 ? "s" : "", config.playersPerTable,
       config.playersPerTable > 1 ? "s" : "");
 
   if (config.cardCounting) {

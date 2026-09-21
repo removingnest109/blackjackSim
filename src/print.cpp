@@ -40,6 +40,8 @@ void printGlobalVars() {
                            !config.surrenderAllowed ? "Disabled"
                            : config.earlySurrender  ? "Early"
                                                     : "Late");
+  std::cout << std::format("Blackjack payout: {}\n",
+                           blackjackPayoutLabel(config.blackjackPayout));
   std::cout << std::format("Card counting: {}\n",
                            config.cardCounting ? "Enabled" : "Disabled");
   std::cout << std::format("Negative bank: {}\n",

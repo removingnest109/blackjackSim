@@ -6,6 +6,22 @@
 // Buckets: <=0, <=2, <=3, <=4, <=5, >5.
 inline constexpr int kBetCurveSize = 6;
 
+// Natural-blackjack pay table. Ordered so the value doubles as the GUI
+// dropdown index; append new variants at the end.
+enum class BlackjackPayout { ThreeToTwo = 0, SixToFive = 1, EvenMoney = 2 };
+
+inline const char *blackjackPayoutLabel(BlackjackPayout p) {
+  switch (p) {
+  case BlackjackPayout::SixToFive:
+    return "6:5";
+  case BlackjackPayout::EvenMoney:
+    return "1:1";
+  case BlackjackPayout::ThreeToTwo:
+  default:
+    return "3:2";
+  }
+}
+
 struct Config {
   int numberHands = 10'000'000;
   int numberDecks = 6;
@@ -18,6 +34,7 @@ struct Config {
   unsigned int threads = 1;
   float penetrationBeforeShuffle = 0.75;
   bool dealerHitSoft17 = false;
+  BlackjackPayout blackjackPayout = BlackjackPayout::ThreeToTwo;
   bool surrenderAllowed = false;
   bool earlySurrender = false; // only meaningful when surrenderAllowed
   bool cardCounting = false;

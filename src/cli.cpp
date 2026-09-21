@@ -46,6 +46,8 @@ void printHelp() {
          "                                 (0 = no limit, default 0)\n"
          "  -p, --penetration <0.0-1.0>    Shuffle penetration (default 0.75)\n"
          "  -s, --dealer-hit-soft-17       Dealer hits soft 17\n"
+         "      --blackjack-payout <ratio> Blackjack pay table: 3:2, 6:5\n"
+         "                                 or 1:1 (default 3:2)\n"
          "  -c, --card-counting            Enable card counting\n"
          "  -e, --debt                     Enable negative bank\n"
          "  -o, --save-json <file>         Save the run to <file> as JSON for\n"
@@ -89,6 +91,24 @@ void getArgs(const int argc, char **argv) {
           std::exit(1);
         }
         config.saveJsonPath = argv[++i];
+      }
+
+      else if (arg == "--blackjack-payout") {
+        if (i + 1 >= argc) {
+          std::cerr << "Missing value for " << arg << "\n";
+          std::exit(1);
+        }
+        const std::string_view value = argv[++i];
+        if (value == "3:2")
+          config.blackjackPayout = BlackjackPayout::ThreeToTwo;
+        else if (value == "6:5")
+          config.blackjackPayout = BlackjackPayout::SixToFive;
+        else if (value == "1:1")
+          config.blackjackPayout = BlackjackPayout::EvenMoney;
+        else {
+          std::cerr << "Invalid value for " << arg << " (want 3:2, 6:5, 1:1)\n";
+          std::exit(1);
+        }
       }
 
       else if (arg == "--strategy") {

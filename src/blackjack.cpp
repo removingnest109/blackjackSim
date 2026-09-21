@@ -195,8 +195,20 @@ bool detectBlackjacks(const Hand &handPlayer, const Hand &handDealer,
   if (playerBJ) {
     stats.playerWins++;
     stats.playerBlackjacks++;
-    stats.bank += static_cast<int64_t>(static_cast<double>(bet) *
-                                       2.5); // original bet + 1.5x
+    // Integer bonus math: original bet plus the pay-table bonus, truncated
+    // the same way the old bet*2.5 cast did for 3:2.
+    switch (config.blackjackPayout) {
+    case BlackjackPayout::SixToFive:
+      stats.bank += bet + bet * 6 / 5;
+      break;
+    case BlackjackPayout::EvenMoney:
+      stats.bank += bet * 2;
+      break;
+    case BlackjackPayout::ThreeToTwo:
+    default:
+      stats.bank += bet + bet * 3 / 2; // original bet + 1.5x
+      break;
+    }
     return true;
   }
   return false;

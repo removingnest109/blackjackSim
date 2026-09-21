@@ -95,6 +95,7 @@ struct GuiParams {
   float penetration = 0.5f;
   int threads = 1;
   bool dealerHitSoft17 = false;
+  BlackjackPayout blackjackPayout = BlackjackPayout::ThreeToTwo;
   bool surrenderAllowed = false;
   bool earlySurrender = false;
   bool cardCounting = false;
@@ -212,11 +213,12 @@ std::string describeRun(const GuiParams &p) {
                                                : "late";
   std::snprintf(buf, sizeof(buf),
                 "%s hands/thread, %d decks, bank %s, %s, min bet %d, max bet %s,\n"
-                "pen %.2f, %s, surrender %s, counting %s, debt %s, %d thread%s, "
-                "%d player%s/table",
+                "pen %.2f, %s, BJ %s, surrender %s, counting %s, debt %s, "
+                "%d thread%s, %d player%s/table",
                 fmtInt(p.hands).c_str(), p.decks, fmtInt(p.bank).c_str(), bet,
                 p.minBet, p.maxBet == 0 ? "none" : std::to_string(p.maxBet).c_str(),
-                p.penetration, p.dealerHitSoft17 ? "H17" : "S17", surrender,
+                p.penetration, p.dealerHitSoft17 ? "H17" : "S17",
+                blackjackPayoutLabel(p.blackjackPayout), surrender,
                 p.cardCounting ? "on" : "off", p.debtAllowed ? "on" : "off",
                 p.threads, p.threads > 1 ? "s" : "",
                 p.playersPerTable, p.playersPerTable > 1 ? "s" : "");
@@ -266,6 +268,7 @@ void saveSettings(const GuiParams &p) {
   j["penetration"]    = p.penetration;
   j["threads"]        = p.threads;
   j["dealerHitSoft17"]= p.dealerHitSoft17;
+  j["blackjackPayout"]= static_cast<int>(p.blackjackPayout);
   j["surrenderAllowed"]= p.surrenderAllowed;
   j["earlySurrender"] = p.earlySurrender;
   j["cardCounting"]   = p.cardCounting;
@@ -299,6 +302,12 @@ void loadSettings(GuiParams &p) {
     p.penetration    = j.value("penetration",    p.penetration);
     p.threads        = j.value("threads",        p.threads);
     p.dealerHitSoft17= j.value("dealerHitSoft17",p.dealerHitSoft17);
+    // Clamp so a hand-edited or newer settings file can't push the enum out
+    // of range; absent in old files, which keeps the 3:2 default.
+    p.blackjackPayout = static_cast<BlackjackPayout>(std::clamp(
+        j.value("blackjackPayout",
+                static_cast<int>(p.blackjackPayout)),
+        0, static_cast<int>(BlackjackPayout::EvenMoney)));
     p.surrenderAllowed= j.value("surrenderAllowed",p.surrenderAllowed);
     p.earlySurrender = j.value("earlySurrender", p.earlySurrender);
     p.cardCounting   = j.value("cardCounting",   p.cardCounting);
@@ -440,6 +449,7 @@ void startRun(AppState &s) {
   config.maximumBet = s.params.maxBet;
   config.penetrationBeforeShuffle = s.params.penetration;
   config.dealerHitSoft17 = s.params.dealerHitSoft17;
+  config.blackjackPayout = s.params.blackjackPayout;
   config.surrenderAllowed = s.params.surrenderAllowed;
   config.earlySurrender = s.params.earlySurrender;
   config.cardCounting = s.params.cardCounting;
@@ -809,6 +819,18 @@ void drawParamsContent(AppState &s) {
         "dealer blackjack takes the full bet first.");
     ImGui::Unindent();
   }
+  ImGui::TextDisabled("Blackjack payout");
+  ImGui::SetItemTooltip("What a natural blackjack pays.\n"
+                        "6:5 and even money increase the house edge.");
+  // Item order matches BlackjackPayout so the index maps directly; append
+  // new pay tables to both.
+  static const char *payoutItems[] = {"Blackjack pays 3:2",
+                                      "Blackjack pays 6:5",
+                                      "Even money (1:1)"};
+  int payoutIdx = static_cast<int>(s.params.blackjackPayout);
+  if (ImGui::Combo("##payout", &payoutIdx, payoutItems,
+                   IM_ARRAYSIZE(payoutItems)))
+    s.params.blackjackPayout = static_cast<BlackjackPayout>(payoutIdx);
   ImGui::Checkbox("Card counting", &s.params.cardCounting);
   ImGui::SetItemTooltip("Simulate Hi-Lo card counting with bet spreading.\n"
                         "The bet multiplier table below scales the wager by true count.");
