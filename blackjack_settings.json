@@ -11,14 +11,14 @@
   ],
   "betPercent": 1.0,
   "betPercentMode": false,
-  "cardCounting": false,
+  "cardCounting": true,
   "dealerHitSoft17": false,
-  "debtAllowed": true,
-  "decks": 6,
-  "hands": 1000000,
+  "debtAllowed": false,
+  "decks": 2,
+  "hands": 1000,
   "maxBet": 100,
   "minBet": 5,
   "penetration": 0.5,
-  "playersPerTable": 4,
-  "threads": 10
+  "playersPerTable": 5,
+  "threads": 1
 }
