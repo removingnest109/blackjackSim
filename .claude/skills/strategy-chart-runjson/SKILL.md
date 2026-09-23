@@ -1,6 +1,5 @@
-# Strategy Chart + Run-JSON Formats
-
 ---
+name: strategy-chart-runjson
 description: Use when loading, validating, editing, or exporting a blackjackSim custom strategy chart JSON (hard/soft/pair grids, H/S/D/P/R action codes, dealer-upcard columns, padding) or when saving, importing, or comparing run-JSON files between the CLI (--strategy, --save-json) and GUI run history.
 ---
 
